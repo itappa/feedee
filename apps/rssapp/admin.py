@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Article, ArticleUserState, Bookmark, Feed, Tag
+from .models import Article, ArticleUserState, Bookmark, Feed, Tag, UserProfile
 
 
 @admin.register(Feed)
@@ -43,3 +43,9 @@ class BookmarkAdmin(admin.ModelAdmin):
     search_fields = ("title", "url")
     list_filter = ("user", "created_at")
     search_fields = ("user__username", "user__email", "article__title", "article__link")
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "default_sort", "items_per_page")
+    list_filter = ("default_sort",)

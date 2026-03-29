@@ -49,6 +49,7 @@ services:
       - .env
     environment:
       - DJANGO_BASE_URL=http://web:8000
+      - WORKER_API_TOKEN=${WORKER_API_TOKEN:?Set WORKER_API_TOKEN in .env}
     depends_on:
       - web
     restart: unless-stopped

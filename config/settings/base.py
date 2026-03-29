@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework.authtoken",
     "apps.rssapp.apps.RssappConfig",
 ]
 
@@ -76,6 +77,10 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_THROTTLE_CLASSES": [
@@ -85,6 +90,8 @@ REST_FRAMEWORK = {
         "anon": "120/min",
     },
 }
+
+LOGIN_URL = "/admin/login/"
 
 LOGGING = {
     "version": 1,

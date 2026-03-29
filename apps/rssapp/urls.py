@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from .views import (
     article_state_toggle_view,
@@ -13,15 +14,37 @@ from .views import (
     mark_all_read_view,
     reader_view,
     feed_articles_view,
+    settings_view,
     tag_list_view,
     tag_update_view,
 )
 
 urlpatterns = [
     path("", dashboard_view, name="rss-dashboard"),
-    path("feeds/settings/", feed_settings_view, name="feed-settings"),
+    # Unified settings
+    path("settings/", settings_view, name="settings-feeds", kwargs={"tab": "feeds"}),
+    path("settings/tags/", settings_view, name="settings-tags", kwargs={"tab": "tags"}),
+    path(
+        "settings/account/",
+        settings_view,
+        name="settings-account",
+        kwargs={"tab": "account"},
+    ),
+    # Legacy redirects
+    path(
+        "feeds/settings/",
+        RedirectView.as_view(pattern_name="settings-feeds", permanent=True),
+        name="feed-settings",
+    ),
+    path(
+        "tags/",
+        RedirectView.as_view(pattern_name="settings-tags", permanent=True),
+        name="tag-list",
+    ),
+    # Feeds
     path("feeds/<int:feed_id>/", feed_articles_view, name="feed-articles"),
     path("feeds/<int:feed_id>/update/", feed_update_view, name="feed-update"),
+    # Articles
     path("articles/<int:article_id>/reader/", reader_view, name="article-reader"),
     path(
         "articles/<int:article_id>/state/<str:state_field>/toggle/",
@@ -44,6 +67,5 @@ urlpatterns = [
         name="bookmark-from-article",
     ),
     # Tags
-    path("tags/", tag_list_view, name="tag-list"),
     path("tags/<int:tag_id>/update/", tag_update_view, name="tag-update"),
 ]

@@ -12,6 +12,12 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
+def category_label(value):
+    """Normalize a feed category value, defaulting to 'Uncategorized'."""
+    cleaned = (value or "").strip()
+    return cleaned if cleaned else "Uncategorized"
+
+
 def normalize_url(url: str) -> str:
     """Normalize URL by removing utm_* params, sorting query keys, and dropping fragment."""
     parts = urlsplit(url)
@@ -31,9 +37,9 @@ def normalize_url(url: str) -> str:
 def generate_article_hash(
     title: str, normalized_link: str, guid: Optional[str] = None
 ) -> str:
-    """Use GUID when available; otherwise hash title + normalized link."""
+    """Always return a SHA-256 hex digest that fits in max_length=64."""
     if guid and guid.strip():
-        return guid.strip()
+        return hashlib.sha256(guid.strip().encode("utf-8")).hexdigest()
 
     key = f"{title.strip()}\n{normalized_link.strip()}"
     return hashlib.sha256(key.encode("utf-8")).hexdigest()

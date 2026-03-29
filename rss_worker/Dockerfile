@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /build/rss-worker ./rs
 FROM alpine:3.20
 
 RUN apk add --no-cache ca-certificates tzdata \
-    && addgroup -S app && adduser -S app -G app
+  && addgroup -S app && adduser -S app -G app
 
 COPY --from=builder /build/rss-worker /usr/local/bin/rss-worker
 

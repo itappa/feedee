@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils.text import slugify
-import bleach
+import nh3
 
 
 class Feed(models.Model):
@@ -46,10 +46,10 @@ class Article(models.Model):
 
     # Allowed attributes per tag
     ALLOWED_ATTRIBUTES = {
-        "a": ["href", "title", "target", "rel"],
-        "img": ["src", "alt", "title", "width", "height"],
-        "table": ["border", "cellpadding", "cellspacing"],
-        "*": ["class"],  # Allow class on any tag
+        "a": {"href", "title", "target"},
+        "img": {"src", "alt", "title", "width", "height"},
+        "table": {"border", "cellpadding", "cellspacing"},
+        "*": {"class"},
     }
 
     feed = models.ForeignKey(
@@ -73,22 +73,21 @@ class Article(models.Model):
     class Meta:
         ordering = ["-published_at", "-created_at"]
 
+    @staticmethod
+    def _sanitize_html(html: str) -> str:
+        return nh3.clean(
+            html,
+            tags=Article.ALLOWED_TAGS,
+            attributes=Article.ALLOWED_ATTRIBUTES,
+            link_rel=None,
+        )
+
     def save(self, *args, **kwargs):
         """Sanitize HTML content before saving."""
         if self.content:
-            self.content = bleach.clean(
-                self.content,
-                tags=Article.ALLOWED_TAGS,
-                attributes=Article.ALLOWED_ATTRIBUTES,
-                strip=True,
-            )
+            self.content = self._sanitize_html(self.content)
         if self.summary:
-            self.summary = bleach.clean(
-                self.summary,
-                tags=Article.ALLOWED_TAGS,
-                attributes=Article.ALLOWED_ATTRIBUTES,
-                strip=True,
-            )
+            self.summary = self._sanitize_html(self.summary)
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
@@ -123,6 +122,26 @@ class ArticleUserState(models.Model):
 
     def __str__(self) -> str:
         return f"state(user={self.user_id}, article={self.article_id})"
+
+
+class UserProfile(models.Model):
+    SORT_CHOICES = [
+        ("published_desc", "Newest first"),
+        ("published_asc", "Oldest first"),
+    ]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    default_sort = models.CharField(
+        max_length=20, choices=SORT_CHOICES, default="published_desc"
+    )
+    items_per_page = models.PositiveIntegerField(default=20)
+
+    def __str__(self) -> str:
+        return f"Profile({self.user.username})"
 
 
 class Tag(models.Model):

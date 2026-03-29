@@ -33,6 +33,7 @@ type workerConfig struct {
 	MaxConcurrency int
 	IngestMaxRetry int
 	InitialBackoff time.Duration
+	APIToken       string
 }
 
 type Feed struct {
@@ -154,12 +155,15 @@ func loadConfig() workerConfig {
 		initialBackoffSec = 1
 	}
 
+	apiToken := strings.TrimSpace(os.Getenv("WORKER_API_TOKEN"))
+
 	return workerConfig{
 		DjangoBaseURL:  strings.TrimRight(baseURL, "/"),
 		HTTPTimeout:    time.Duration(httpTimeoutSec) * time.Second,
 		MaxConcurrency: maxConcurrency,
 		IngestMaxRetry: ingestMaxRetry,
 		InitialBackoff: time.Duration(initialBackoffSec) * time.Second,
+		APIToken:       apiToken,
 	}
 }
 
@@ -183,6 +187,9 @@ func fetchFeeds(client *http.Client, cfg workerConfig) ([]Feed, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build feed list request: %w", err)
+	}
+	if cfg.APIToken != "" {
+		req.Header.Set("Authorization", "Token "+cfg.APIToken)
 	}
 
 	resp, err := client.Do(req)
@@ -441,6 +448,9 @@ func postIngest(client *http.Client, cfg workerConfig, articles []IngestArticle)
 		return fmt.Errorf("build ingest request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if cfg.APIToken != "" {
+		req.Header.Set("Authorization", "Token "+cfg.APIToken)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

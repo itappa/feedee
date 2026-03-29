@@ -2,47 +2,50 @@ from collections import OrderedDict
 
 from django.db.models import Count, Q
 
-from .models import Article, ArticleUserState, Bookmark, Feed, Tag
-
-
-def _category_label(value):
-    cleaned = (value or "").strip()
-    return cleaned if cleaned else "Uncategorized"
+from .models import ArticleUserState, Bookmark, Feed, Tag
+from .utils import category_label
 
 
 def sidebar_feeds(request):
     """Provide feed list with unread counts for the global sidebar."""
-    feeds = Feed.objects.filter(is_active=True).order_by("display_order", "name")
+    user = request.user
+    is_auth = user.is_authenticated
 
-    read_article_ids = set()
+    # Single annotated query: article_count + read_count per feed
+    feeds_qs = Feed.objects.filter(is_active=True).order_by("display_order", "name")
+    if is_auth:
+        feeds_qs = feeds_qs.annotate(
+            article_count=Count("articles"),
+            read_count=Count(
+                "articles",
+                filter=Q(
+                    articles__user_states__user=user,
+                    articles__user_states__is_read=True,
+                ),
+            ),
+        )
+    else:
+        feeds_qs = feeds_qs.annotate(article_count=Count("articles"))
+
     total_unread = 0
     total_read_later = 0
     total_favorites = 0
 
-    if request.user.is_authenticated:
-        user_states = ArticleUserState.objects.filter(user=request.user)
-        read_article_ids = set(
-            user_states.filter(is_read=True).values_list("article_id", flat=True)
-        )
+    if is_auth:
+        user_states = ArticleUserState.objects.filter(user=user)
         total_read_later = user_states.filter(is_read_later=True).count()
         total_favorites = user_states.filter(is_favorite=True).count()
 
     feed_list = []
     grouped = OrderedDict()
-    for feed in feeds:
-        article_count = Article.objects.filter(feed=feed).count()
-        unread = (
-            article_count
-            - Article.objects.filter(feed=feed, id__in=read_article_ids).count()
-            if read_article_ids
-            else article_count
-        )
+    for feed in feeds_qs:
+        unread = feed.article_count - getattr(feed, "read_count", 0)
         total_unread += unread
 
         feed_data = {
             "id": feed.id,
             "name": feed.name,
-            "category": _category_label(feed.category),
+            "category": category_label(feed.category),
             "unread_count": unread,
         }
         feed_list.append(feed_data)
@@ -55,10 +58,10 @@ def sidebar_feeds(request):
     # Bookmark / tag data for sidebar
     sidebar_tags = []
     total_bookmarks = 0
-    if request.user.is_authenticated:
-        total_bookmarks = Bookmark.objects.filter(user=request.user).count()
+    if is_auth:
+        total_bookmarks = Bookmark.objects.filter(user=user).count()
         sidebar_tags = list(
-            Tag.objects.filter(user=request.user)
+            Tag.objects.filter(user=user)
             .annotate(bookmark_count=Count("bookmarks"))
             .order_by("name")
             .values("id", "name", "slug", "color", "bookmark_count")

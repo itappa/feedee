@@ -10,7 +10,8 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.development
 
@@ -19,8 +20,10 @@ services:
       context: .
       dockerfile: rss_worker/Dockerfile
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - DJANGO_BASE_URL=http://web:8000
+      - WORKER_API_TOKEN=${WORKER_API_TOKEN:-}
     depends_on:
       - web

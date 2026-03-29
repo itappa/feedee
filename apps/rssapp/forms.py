@@ -1,6 +1,7 @@
 from django import forms
+from django.contrib.auth.forms import PasswordChangeForm as DjangoPasswordChangeForm
 
-from .models import Bookmark, Feed, Tag
+from .models import Bookmark, Feed, Tag, UserProfile
 
 _INPUT_CLASS = (
     "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm "
@@ -102,3 +103,30 @@ class BookmarkForm(forms.ModelForm):
                 }
             ),
         }
+
+
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ["default_sort", "items_per_page"]
+        widgets = {
+            "default_sort": forms.Select(
+                attrs={
+                    "class": _INPUT_CLASS,
+                }
+            ),
+            "items_per_page": forms.NumberInput(
+                attrs={
+                    "class": _INPUT_CLASS,
+                    "min": "5",
+                    "max": "100",
+                }
+            ),
+        }
+
+
+class StyledPasswordChangeForm(DjangoPasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = _INPUT_CLASS

@@ -4,19 +4,27 @@ import subprocess
 from urllib.parse import urlencode, urlparse
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from rest_framework import generics, status
-from rest_framework.authentication import BasicAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .forms import BookmarkForm, FeedCreateForm, FeedUpdateForm, TagForm
-from .models import Article, ArticleUserState, Bookmark, Feed, Tag
+from .forms import (
+    BookmarkForm,
+    FeedCreateForm,
+    FeedUpdateForm,
+    StyledPasswordChangeForm,
+    TagForm,
+    UserProfileForm,
+)
+from .models import Article, ArticleUserState, Bookmark, Feed, Tag, UserProfile
 from .serializers import (
     ArticleIngestSerializer,
     ArticleUserStateSerializer,
@@ -30,12 +38,15 @@ logger = logging.getLogger(__name__)
 
 
 class FeedListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
     queryset = Feed.objects.filter(is_active=True).order_by("display_order", "id")
     serializer_class = FeedSerializer
     pagination_class = None
 
 
 class FeedReorderView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         serializer = FeedReorderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -64,6 +75,8 @@ class FeedReorderView(APIView):
 
 
 class ArticleIngestView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         serializer = ArticleIngestSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
@@ -114,7 +127,6 @@ class ArticleIngestView(APIView):
 
 
 class ArticleUserStateView(APIView):
-    authentication_classes = [BasicAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request, article_id):
@@ -149,8 +161,9 @@ class ArticleUserStateView(APIView):
 
 
 def _category_label(value):
-    cleaned = (value or "").strip()
-    return cleaned if cleaned else "Uncategorized"
+    from .utils import category_label
+
+    return category_label(value)
 
 
 def run_rss_worker():
@@ -178,24 +191,40 @@ def run_rss_worker():
         logger.error(f"Failed to start RSS worker: {e}")
 
 
-def dashboard_view(request):
+def _build_article_list_context(request, base_qs, feed_name_fn=None):
+    """
+    Shared logic for dashboard and feed-article views.
+    Returns (article_cards, page_obj, context_dict).
+    feed_name_fn: callable(article) -> str, defaults to article.feed.name.
+    """
+    # Load user preferences
+    items_per_page = 20
+    if request.user.is_authenticated:
+        profile = getattr(request.user, "profile", None)
+        if profile:
+            items_per_page = profile.items_per_page
+            if profile.default_sort == "published_asc":
+                base_qs = base_qs.order_by("published_at", "created_at")
+
     query = request.GET.get("q", "").strip()
     state_filter = request.GET.get("state", "all").strip()
     if state_filter not in {"all", "unread", "read-later", "favorites"}:
         state_filter = "all"
 
-    base_articles_qs = Article.objects.filter(feed__isnull=False).select_related("feed")
-    articles_qs = base_articles_qs
+    articles_qs = base_qs
     if query:
         articles_qs = articles_qs.filter(title__icontains=query)
 
+    all_count = base_qs.count()
     favorites_count = 0
     read_later_count = 0
-    unread_count = articles_qs.count()
+    unread_count = all_count
     read_count = 0
 
     if request.user.is_authenticated:
-        user_states = ArticleUserState.objects.filter(user=request.user)
+        user_states = ArticleUserState.objects.filter(
+            user=request.user, article__in=base_qs
+        )
         favorites_count = user_states.filter(is_favorite=True).count()
         read_later_count = user_states.filter(is_read_later=True).count()
         read_count = user_states.filter(is_read=True).count()
@@ -216,28 +245,30 @@ def dashboard_view(request):
         unread_count = (
             articles_qs.count()
             if state_filter == "unread"
-            else base_articles_qs.exclude(
-                user_states__user=request.user,
-                user_states__is_read=True,
+            else base_qs.exclude(
+                user_states__user=request.user, user_states__is_read=True
             ).count()
         )
     elif state_filter in {"favorites", "read-later"}:
         articles_qs = articles_qs.none()
 
-    paginator = Paginator(articles_qs, 20)
+    paginator = Paginator(articles_qs, items_per_page)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    article_cards = []
-    article_ids = [article.id for article in page_obj.object_list]
+    article_ids = [a.id for a in page_obj.object_list]
     state_by_article_id = {}
     if request.user.is_authenticated and article_ids:
         state_by_article_id = {
-            state.article_id: state
-            for state in ArticleUserState.objects.filter(
+            s.article_id: s
+            for s in ArticleUserState.objects.filter(
                 user=request.user, article_id__in=article_ids
             )
         }
 
+    if feed_name_fn is None:
+        feed_name_fn = lambda a: a.feed.name if a.feed else ""
+
+    article_cards = []
     for article in page_obj.object_list:
         domain = urlparse(article.link).netloc
         state = state_by_article_id.get(article.id)
@@ -247,7 +278,7 @@ def dashboard_view(request):
                 "title": article.title,
                 "link": article.link,
                 "domain": domain,
-                "feed_name": article.feed.name if article.feed else "",
+                "feed_name": feed_name_fn(article),
                 "summary": article.summary or "",
                 "image_url": article.image_url or "",
                 "published_at": article.published_at,
@@ -261,19 +292,24 @@ def dashboard_view(request):
     context = {
         "article_cards": article_cards,
         "page_obj": page_obj,
-        "article_count": articles_qs.count(),
+        "article_count": paginator.count,
         "query": query,
         "state_filter": state_filter,
         "state_filter_links": [
-            {"key": "all", "label": "All", "count": base_articles_qs.count()},
+            {"key": "all", "label": "All", "count": all_count},
             {"key": "unread", "label": "Unread", "count": unread_count},
             {"key": "read-later", "label": "Read Later", "count": read_later_count},
             {"key": "favorites", "label": "Favorites", "count": favorites_count},
         ],
         "read_count": read_count,
-        "current_page": "dashboard",
-        "breadcrumbs": [],
     }
+    return context
+
+
+def dashboard_view(request):
+    base_qs = Article.objects.filter(feed__isnull=False).select_related("feed")
+    context = _build_article_list_context(request, base_qs)
+    context.update({"current_page": "dashboard", "breadcrumbs": []})
 
     # Recent bookmarks for portal dashboard
     if request.user.is_authenticated:
@@ -302,6 +338,7 @@ def dashboard_view(request):
     return render(request, "rss/dashboard.html", context)
 
 
+@login_required
 def feed_settings_view(request):
     if request.method == "POST":
         form = FeedCreateForm(request.POST)
@@ -347,9 +384,10 @@ def feed_settings_view(request):
     )
 
 
+@login_required
 def feed_update_view(request, feed_id):
     if request.method != "POST":
-        return redirect("feed-settings")
+        return redirect("settings-feeds")
 
     feed = get_object_or_404(Feed, id=feed_id)
 
@@ -358,7 +396,7 @@ def feed_update_view(request, feed_id):
         name = feed.name
         feed.delete()
         messages.success(request, f"Deleted feed: {name}")
-        return redirect("feed-settings")
+        return redirect("settings-feeds")
 
     form = FeedUpdateForm(request.POST, instance=feed, prefix=f"feed-{feed.id}")
     if form.is_valid():
@@ -367,9 +405,105 @@ def feed_update_view(request, feed_id):
     else:
         messages.error(request, "Could not update feed settings.")
 
-    return redirect("feed-settings")
+    return redirect("settings-feeds")
 
 
+@login_required
+def settings_view(request, tab="feeds"):
+    valid_tabs = ("feeds", "tags", "account")
+    if tab not in valid_tabs:
+        tab = "feeds"
+
+    context = {"current_page": "settings", "active_tab": tab}
+
+    if tab == "feeds":
+        if request.method == "POST":
+            form = FeedCreateForm(request.POST)
+            if form.is_valid():
+                try:
+                    new_feed = form.save(commit=False)
+                    max_order = (
+                        Feed.objects.order_by("-display_order")
+                        .values_list("display_order", flat=True)
+                        .first()
+                    )
+                    new_feed.display_order = (max_order or 0) + 1
+                    new_feed.save()
+                    run_rss_worker()
+                    messages.success(request, "Feed added.")
+                    return redirect("settings-feeds")
+                except IntegrityError:
+                    messages.error(request, "This feed URL is already subscribed.")
+        else:
+            form = FeedCreateForm()
+
+        feeds = (
+            Feed.objects.all()
+            .annotate(article_count=Count("articles"))
+            .order_by("display_order", "id")
+        )
+        feed_rows = [
+            {
+                "feed": feed,
+                "form": FeedUpdateForm(instance=feed, prefix=f"feed-{feed.id}"),
+            }
+            for feed in feeds
+        ]
+        context.update({"feed_form": form, "feeds": feeds, "feed_rows": feed_rows})
+
+    elif tab == "tags":
+        if request.method == "POST":
+            form = TagForm(request.POST)
+            if form.is_valid():
+                tag = form.save(commit=False)
+                tag.user = request.user
+                try:
+                    tag.save()
+                    messages.success(request, f'Tag "{tag.name}" created.')
+                    return redirect("settings-tags")
+                except IntegrityError:
+                    messages.error(request, "A tag with this name already exists.")
+        else:
+            form = TagForm()
+
+        tags = Tag.objects.filter(user=request.user).annotate(
+            bookmark_count=Count("bookmarks")
+        )
+        tag_rows = [
+            {"tag": tag, "form": TagForm(instance=tag, prefix=f"tag-{tag.id}")}
+            for tag in tags
+        ]
+        context.update({"tag_form": form, "tags": tags, "tag_rows": tag_rows})
+
+    elif tab == "account":
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        profile_form = UserProfileForm(instance=profile)
+        password_form = StyledPasswordChangeForm(request.user)
+
+        if request.method == "POST":
+            action = request.POST.get("form_action", "")
+            if action == "profile":
+                profile_form = UserProfileForm(request.POST, instance=profile)
+                if profile_form.is_valid():
+                    profile_form.save()
+                    messages.success(request, "Preferences saved.")
+                    return redirect("settings-account")
+            elif action == "password":
+                password_form = StyledPasswordChangeForm(request.user, request.POST)
+                if password_form.is_valid():
+                    password_form.save()
+                    from django.contrib.auth import update_session_auth_hash
+
+                    update_session_auth_hash(request, password_form.user)
+                    messages.success(request, "Password changed.")
+                    return redirect("settings-account")
+
+        context.update({"profile_form": profile_form, "password_form": password_form})
+
+    return render(request, "rss/settings.html", context)
+
+
+@login_required
 def reader_view(request, article_id):
     article = get_object_or_404(Article.objects.select_related("feed"), id=article_id)
     state = None
@@ -386,22 +520,40 @@ def reader_view(request, article_id):
             state.is_read = True
             state.save(update_fields=["is_read", "updated_at"])
 
-    # Prev / Next navigation within the same feed
+    # Prev / Next navigation within the same feed (newer = prev, older = next)
     prev_article = None
     next_article = None
     if article.feed:
-        prev_article = (
-            Article.objects.filter(feed=article.feed, id__gt=article.id)
-            .order_by("id")
-            .values("id")
-            .first()
-        )
-        next_article = (
-            Article.objects.filter(feed=article.feed, id__lt=article.id)
-            .order_by("-id")
-            .values("id")
-            .first()
-        )
+        qs = Article.objects.filter(feed=article.feed).exclude(id=article.id)
+        if article.published_at is not None:
+            # Newer article (prev): published later, or same time but higher id
+            prev_article = (
+                qs.filter(
+                    Q(published_at__gt=article.published_at)
+                    | Q(published_at=article.published_at, id__gt=article.id)
+                )
+                .order_by("published_at", "id")
+                .values("id")
+                .first()
+            )
+            # Older article (next): published earlier, or same time but lower id
+            next_article = (
+                qs.filter(
+                    Q(published_at__lt=article.published_at)
+                    | Q(published_at=article.published_at, id__lt=article.id)
+                )
+                .order_by("-published_at", "-id")
+                .values("id")
+                .first()
+            )
+        else:
+            # Fallback to id-based ordering when published_at is not set
+            prev_article = (
+                qs.filter(id__gt=article.id).order_by("id").values("id").first()
+            )
+            next_article = (
+                qs.filter(id__lt=article.id).order_by("-id").values("id").first()
+            )
 
     return render(
         request,
@@ -421,110 +573,17 @@ def reader_view(request, article_id):
 
 def feed_articles_view(request, feed_id):
     feed = get_object_or_404(Feed, id=feed_id)
-
-    query = request.GET.get("q", "").strip()
-    state_filter = request.GET.get("state", "all").strip()
-    if state_filter not in {"all", "unread", "read-later", "favorites"}:
-        state_filter = "all"
-
-    articles_qs = Article.objects.filter(feed=feed)
-    if query:
-        articles_qs = articles_qs.filter(title__icontains=query)
-
-    favorites_count = 0
-    read_later_count = 0
-    unread_count = articles_qs.count()
-    read_count = 0
-
-    if request.user.is_authenticated:
-        user_states = ArticleUserState.objects.filter(
-            user=request.user, article__feed=feed
-        )
-        favorites_count = user_states.filter(is_favorite=True).count()
-        read_later_count = user_states.filter(is_read_later=True).count()
-        read_count = user_states.filter(is_read=True).count()
-
-        if state_filter == "favorites":
-            articles_qs = articles_qs.filter(
-                user_states__user=request.user, user_states__is_favorite=True
-            )
-        elif state_filter == "read-later":
-            articles_qs = articles_qs.filter(
-                user_states__user=request.user, user_states__is_read_later=True
-            )
-        elif state_filter == "unread":
-            articles_qs = articles_qs.exclude(
-                user_states__user=request.user, user_states__is_read=True
-            )
-
-        unread_count = (
-            articles_qs.count()
-            if state_filter == "unread"
-            else Article.objects.filter(feed=feed)
-            .exclude(
-                user_states__user=request.user,
-                user_states__is_read=True,
-            )
-            .count()
-        )
-    elif state_filter in {"favorites", "read-later"}:
-        articles_qs = articles_qs.none()
-
-    paginator = Paginator(articles_qs, 20)
-    page_obj = paginator.get_page(request.GET.get("page"))
-
-    article_cards = []
-    article_ids = [article.id for article in page_obj.object_list]
-    state_by_article_id = {}
-    if request.user.is_authenticated and article_ids:
-        state_by_article_id = {
-            state.article_id: state
-            for state in ArticleUserState.objects.filter(
-                user=request.user, article_id__in=article_ids
-            )
+    base_qs = Article.objects.filter(feed=feed)
+    context = _build_article_list_context(
+        request, base_qs, feed_name_fn=lambda a: feed.name
+    )
+    context.update(
+        {
+            "feed": feed,
+            "current_page": "feed-articles",
+            "current_feed_id": feed.id,
         }
-
-    for article in page_obj.object_list:
-        domain = urlparse(article.link).netloc
-        state = state_by_article_id.get(article.id)
-        article_cards.append(
-            {
-                "id": article.id,
-                "title": article.title,
-                "link": article.link,
-                "domain": domain,
-                "feed_name": feed.name,
-                "summary": article.summary or "",
-                "image_url": article.image_url or "",
-                "published_at": article.published_at,
-                "created_at": article.created_at,
-                "is_favorite": state.is_favorite if state else False,
-                "is_read_later": state.is_read_later if state else False,
-                "is_read": state.is_read if state else False,
-            }
-        )
-
-    context = {
-        "feed": feed,
-        "article_cards": article_cards,
-        "page_obj": page_obj,
-        "article_count": articles_qs.count(),
-        "query": query,
-        "state_filter": state_filter,
-        "state_filter_links": [
-            {
-                "key": "all",
-                "label": "All",
-                "count": Article.objects.filter(feed=feed).count(),
-            },
-            {"key": "unread", "label": "Unread", "count": unread_count},
-            {"key": "read-later", "label": "Read Later", "count": read_later_count},
-            {"key": "favorites", "label": "Favorites", "count": favorites_count},
-        ],
-        "read_count": read_count,
-        "current_page": "feed-articles",
-        "current_feed_id": feed.id,
-    }
+    )
     return render(request, "rss/feed_articles.html", context)
 
 
@@ -545,7 +604,7 @@ def article_state_toggle_view(request, article_id, state_field):
         redirect_params["state"] = state
 
     redirect_url = reverse("rss-dashboard")
-    if next_url.startswith("/"):
+    if url_has_allowed_host_and_scheme(next_url, allowed_hosts=None):
         redirect_url = next_url
     if redirect_params:
         redirect_url = f"{redirect_url}?{urlencode(redirect_params)}"
@@ -599,12 +658,22 @@ def mark_all_read_view(request):
         )
 
     with transaction.atomic():
-        for article in articles_qs.iterator():
-            ArticleUserState.objects.update_or_create(
-                user=request.user,
-                article=article,
-                defaults={"is_read": True},
-            )
+        article_ids = list(articles_qs.values_list("id", flat=True))
+        existing_ids = set(
+            ArticleUserState.objects.filter(
+                user=request.user, article_id__in=article_ids
+            ).values_list("article_id", flat=True)
+        )
+        ArticleUserState.objects.filter(
+            user=request.user, article_id__in=existing_ids
+        ).update(is_read=True)
+        new_states = [
+            ArticleUserState(user=request.user, article_id=aid, is_read=True)
+            for aid in article_ids
+            if aid not in existing_ids
+        ]
+        if new_states:
+            ArticleUserState.objects.bulk_create(new_states)
 
     messages.success(request, "All articles marked as read.")
     return redirect(redirect_url)
@@ -614,7 +683,6 @@ def mark_all_read_view(request):
 
 
 class FetchMetadataView(APIView):
-    authentication_classes = [BasicAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -710,9 +778,13 @@ def bookmark_add_view(request):
             # Store thumbnail from hidden field
             bookmark.thumbnail_url = request.POST.get("thumbnail_url", "")
             # Link to source article if provided
-            source_id = request.POST.get("source_article_id")
+            source_id = request.POST.get("source_article_id", "").strip()
             if source_id:
-                bookmark.source_article_id = int(source_id)
+                try:
+                    article = get_object_or_404(Article, id=int(source_id))
+                    bookmark.source_article = article
+                except (ValueError, TypeError):
+                    pass
             try:
                 bookmark.save()
                 _save_bookmark_tags(
@@ -865,7 +937,7 @@ def tag_update_view(request, tag_id):
     if not request.user.is_authenticated:
         return redirect("rss-dashboard")
     if request.method != "POST":
-        return redirect("tag-list")
+        return redirect("settings-tags")
 
     tag = get_object_or_404(Tag, id=tag_id, user=request.user)
 
@@ -873,7 +945,7 @@ def tag_update_view(request, tag_id):
         name = tag.name
         tag.delete()
         messages.success(request, f"Deleted tag: {name}")
-        return redirect("tag-list")
+        return redirect("settings-tags")
 
     form = TagForm(request.POST, instance=tag, prefix=f"tag-{tag.id}")
     if form.is_valid():
@@ -884,4 +956,4 @@ def tag_update_view(request, tag_id):
     else:
         messages.error(request, "Could not update tag.")
 
-    return redirect("tag-list")
+    return redirect("settings-tags")
