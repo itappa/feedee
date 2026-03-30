@@ -14,7 +14,7 @@
 
 {# ── Top Navigation Bar ─────────────────────────────── #}
 <header class="fixed top-0 inset-x-0 z-50 h-14 bg-white border-b border-gray-200 shadow-soft flex items-center px-4 md:px-6 gap-4">
-    <button id="sidebar-toggle" class="md:hidden -ml-1 p-1.5 rounded-lg hover:bg-gray-100 text-gray-600">
+    <button id="sidebar-toggle" class="md:hidden -ml-1 p-1.5 rounded-lg hover:bg-gray-100 text-gray-600" aria-label="Toggle sidebar">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
 
@@ -33,7 +33,7 @@
         </div>
     </form>
     {# Mobile search toggle #}
-    <button id="mobile-search-toggle" class="sm:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-600">
+    <button id="mobile-search-toggle" class="sm:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-600" aria-label="Search">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 21l-5.2-5.2M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
     </button>
 
@@ -42,7 +42,7 @@
     <div class="flex items-center gap-2 flex-shrink-0 text-sm">
         {% if request.user.is_authenticated %}
             <div class="relative" id="user-menu-wrapper">
-                <button id="user-menu-btn" type="button"
+                <button id="user-menu-btn" type="button" aria-label="User menu"
                         class="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-gray-100 transition-colors">
                     <span class="hidden sm:inline text-gray-500">{{ request.user.username }}</span>
                     <div class="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center">
@@ -114,6 +114,8 @@
         </a>
     </nav>
     <div class="border-t border-gray-100 mx-3"></div>
+
+    {# ── Feeds Section ──────────────────────────────── #}
     <div class="flex-1 overflow-y-auto px-3 pt-3 pb-2">
         <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Feeds</p>
         {% for group in sidebar_groups %}
@@ -138,24 +140,31 @@
         {% empty %}
             <p class="px-3 text-sm text-gray-400">No feeds yet</p>
         {% endfor %}
+    </div>
+    <div class="border-t border-gray-100 mx-3"></div>
 
-        <div class="border-t border-gray-100 my-3"></div>
-        <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Bookmarks</p>
+    {# ── Bookmarks Section ──────────────────────────── #}
+    <nav class="px-3 pt-3 pb-2">
         <a href="{% url 'bookmark-list' %}"
            class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'bookmarks' and not tag_slug %}active{% endif %}">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-            All bookmarks
+            Bookmarks
             {% if sidebar_total_bookmarks %}<span class="ml-auto text-xs font-medium text-violet-600 bg-violet-50 rounded-full px-2 py-0.5">{{ sidebar_total_bookmarks }}</span>{% endif %}
         </a>
-        {% for tag in sidebar_tags %}
-            <a href="{% url 'bookmark-list' %}?tag={{ tag.slug }}"
-               class="sidebar-link flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-600 {% if current_page == 'bookmarks' and tag_slug == tag.slug %}active{% endif %}">
-                <span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ tag.color }}"></span>
-                <span class="truncate">{{ tag.name }}</span>
-                {% if tag.bookmark_count %}<span class="ml-auto text-[11px] tabular-nums text-gray-400">{{ tag.bookmark_count }}</span>{% endif %}
-            </a>
-        {% endfor %}
-    </div>
+        {% if sidebar_tags %}
+        <div class="flex flex-wrap gap-1.5 px-3 mt-2">
+            {% for tag in sidebar_tags %}
+                <a href="{% url 'bookmark-list' %}?tag={{ tag.slug }}"
+                   class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors
+                          {% if current_page == 'bookmarks' and tag_slug == tag.slug %}text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}"
+                   {% if current_page == 'bookmarks' and tag_slug == tag.slug %}style="background-color: {{ tag.color }}"{% endif %}>
+                    <span class="w-2 h-2 rounded-full flex-shrink-0 {% if current_page == 'bookmarks' and tag_slug == tag.slug %}bg-white/50{% endif %}" {% if current_page != 'bookmarks' or tag_slug != tag.slug %}style="background-color: {{ tag.color }}"{% endif %}></span>
+                    {{ tag.name }}
+                </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </nav>
     <div class="border-t border-gray-100 px-3 py-3 space-y-0.5">
         <a href="{% url 'settings-feeds' %}"
            class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 {% if current_page == 'settings' %}active{% endif %}">
@@ -183,7 +192,7 @@
 </main>
 
 {# ── Confirm Dialog ────────────────────────────── #}
-<div id="confirm-dialog" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center" style="display:none">
+<div id="confirm-dialog" class="fixed inset-0 z-[110] bg-black/40 items-center justify-center" role="dialog" aria-modal="true" style="display:none">
     <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm w-full mx-4">
         <p id="confirm-message" class="text-sm text-gray-700 leading-relaxed"></p>
         <div class="mt-5 flex items-center justify-end gap-2">
@@ -200,7 +209,7 @@
 </div>
 
 {# ── Keyboard Shortcuts Help Overlay ───────────── #}
-<div id="shortcut-help" class="fixed inset-0 z-[100] bg-black/40 hidden items-center justify-center" style="display:none">
+<div id="shortcut-help" class="fixed inset-0 z-[100] bg-black/40 items-center justify-center" role="dialog" aria-modal="true" style="display:none">
     <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm w-full mx-4">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-gray-900">Keyboard shortcuts</h3>

@@ -310,31 +310,6 @@ def dashboard_view(request):
     base_qs = Article.objects.filter(feed__isnull=False).select_related("feed")
     context = _build_article_list_context(request, base_qs)
     context.update({"current_page": "dashboard", "breadcrumbs": []})
-
-    # Recent bookmarks for portal dashboard
-    if request.user.is_authenticated:
-        recent_bookmarks = (
-            Bookmark.objects.filter(user=request.user)
-            .prefetch_related("tags")
-            .order_by("-created_at")[:5]
-        )
-        bookmark_cards = []
-        for bm in recent_bookmarks:
-            domain = urlparse(bm.url).netloc
-            bookmark_cards.append(
-                {
-                    "id": bm.id,
-                    "url": bm.url,
-                    "title": bm.title,
-                    "description": bm.description,
-                    "thumbnail_url": bm.thumbnail_url,
-                    "domain": domain,
-                    "tags": list(bm.tags.all()),
-                    "created_at": bm.created_at,
-                }
-            )
-        context["recent_bookmarks"] = bookmark_cards
-
     return render(request, "rss/dashboard.html", context)
 
 
