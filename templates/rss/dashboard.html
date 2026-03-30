@@ -5,11 +5,8 @@
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 md:px-8 py-6">
 
-    {# ── Portal 2-column layout ─────────────────────── #}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-    {# ── Left column: RSS articles (2/3 width) ──────── #}
-    <div class="lg:col-span-2">
+    {# ── Full-width RSS article list ──────────────────── #}
+    <div>
     {# ── Page header ────────────────────────────────── #}
     <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
@@ -77,57 +74,7 @@
         </p>
     </div>
     {% endif %}
-    </div>{# end left column #}
-
-    {# ── Right column: Recent bookmarks (1/3 width) ── #}
-    {% if request.user.is_authenticated %}
-    <div class="lg:col-span-1">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold text-gray-900">Bookmarks</h2>
-            <a href="{% url 'bookmark-add' %}" class="text-xs font-medium text-brand-600 hover:text-brand-700">+ Add</a>
-        </div>
-
-        {% if recent_bookmarks %}
-        <div class="space-y-3">
-            {% for bm in recent_bookmarks %}
-            <a href="{{ bm.url }}" target="_blank" rel="noopener noreferrer"
-               class="group block rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden hover:border-gray-300 hover:shadow-md transition-all">
-                {% if bm.thumbnail_url %}
-                <div class="h-32 bg-gray-100 overflow-hidden">
-                    <img src="{{ bm.thumbnail_url }}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy">
-                </div>
-                {% else %}
-                <div class="h-20 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                    <span class="text-2xl font-bold text-gray-300">{{ bm.domain|truncatechars:1|upper }}</span>
-                </div>
-                {% endif %}
-                <div class="p-3">
-                    <h3 class="text-sm font-medium text-gray-900 group-hover:text-brand-700 line-clamp-2 transition-colors">{{ bm.title }}</h3>
-                    <p class="mt-1 text-[11px] text-gray-400">{{ bm.domain }}</p>
-                    {% if bm.tags %}
-                    <div class="mt-2 flex flex-wrap gap-1">
-                        {% for tag in bm.tags %}
-                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium" style="background-color: {{ tag.color }}20; color: {{ tag.color }}">{{ tag.name }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        <div class="mt-4 text-center">
-            <a href="{% url 'bookmark-list' %}" class="text-sm text-brand-600 hover:text-brand-700 font-medium">View all bookmarks &rarr;</a>
-        </div>
-        {% else %}
-        <div class="rounded-xl border-2 border-dashed border-gray-200 bg-white/50 p-8 text-center">
-            <svg class="w-10 h-10 mx-auto text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-            <p class="mt-3 text-sm font-medium text-gray-500">No bookmarks yet</p>
-            <a href="{% url 'bookmark-add' %}" class="mt-2 inline-block text-sm text-brand-600 hover:text-brand-700 font-medium">Add your first bookmark &rarr;</a>
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    </div>{# end grid #}
+    </div>{# end article list #}
+</div>{# end max-w-6xl #}
 </div>
 {% endblock %}
