@@ -96,6 +96,9 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
 
+SESSION_COOKIE_NAME = "feedee_sessionid"
+CSRF_COOKIE_NAME = "feedee_csrftoken"
+
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"

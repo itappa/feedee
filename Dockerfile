@@ -37,7 +37,6 @@ COPY --from=frontend /app/static/dist/ static/dist/
 RUN chmod +x docker/entrypoint.sh
 
 RUN chown -R app:app /app
-USER app
 
 EXPOSE 8000
 
