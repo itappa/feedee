@@ -31,6 +31,13 @@ up: ## Start dev environment (background)
 down: ## Stop dev environment
 	$(COMPOSE) down
 
+proxy-dev-up: ## Start dev environment behind shared local-proxy nginx
+	docker compose -f compose.local-proxy.yaml up -d
+proxy-dev-up-build: ## Build and start dev environment behind shared local-proxy nginx
+	docker compose -f compose.local-proxy.yaml up -d --build
+proxy-dev-down: ## Stop dev environment started with proxy-dev-up
+	docker compose -f compose.local-proxy.yaml down
+
 logs: ## Tail dev logs
 	$(COMPOSE) logs -f
 

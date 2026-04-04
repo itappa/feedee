@@ -1,0 +1,65 @@
+# Local multi-proxy standalone compose for feedee.
+#
+# feedee's default compose.yaml hard-codes port 8000:8000 and 5173:5173.
+# Because Docker Compose merges arrays (append only), those bindings cannot
+# be removed via an overlay. This file is therefore a complete standalone
+# configuration — use it ALONE, not combined with compose.yaml.
+#
+# Usage:
+#   docker compose -f compose.local-proxy.yaml up -d
+#     OR:
+#   make proxy-dev-up
+#
+# What changes vs. compose.yaml:
+#   - web: no "8000:8000" host port (traffic arrives via local-proxy nginx)
+#   - web: joined to external `local-proxy` network with alias `feedee-web`
+#   - vite: port changed from 5173 → 5174 to avoid conflict with favtt
+
+networks:
+  local-proxy:
+    external: true
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+    networks:
+      default: {}
+      local-proxy:
+        aliases:
+          - feedee-web
+
+  vite:
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - .:/app
+      - vite_node_modules:/app/node_modules
+    ports:
+      - "5174:5173"
+
+  rss-worker:
+    build:
+      context: .
+      dockerfile: rss_worker/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DJANGO_BASE_URL=http://web:8000
+      - WORKER_API_TOKEN=${WORKER_API_TOKEN:-}
+    depends_on:
+      - web
+
+volumes:
+  vite_node_modules:
