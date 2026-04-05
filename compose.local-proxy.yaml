@@ -24,7 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python manage.py runserver 0.0.0.0:8000
+    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
     env_file:
@@ -32,6 +32,16 @@ services:
         required: false
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DATABASE_URL=${DATABASE_URL:-postgresql://feedee:feedee@postgres:5432/feedee}
+      - DJANGO_ALLOWED_HOSTS=${FEEDEE_ALLOWED_HOSTS:-localhost,127.0.0.1,feedee.local,feedee.localhost,web,feedee-web}
+      - CSRF_TRUSTED_ORIGINS=${FEEDEE_CSRF_TRUSTED_ORIGINS:-http://feedee.local,http://feedee.localhost}
+      - VITE_DEV_URL=${FEEDEE_VITE_DEV_URL:-http://feedee.localhost:5174}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/')\" >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
     networks:
       default: {}
       local-proxy:
@@ -42,6 +52,10 @@ services:
     image: node:22-slim
     working_dir: /app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      - VITE_HMR_HOST=${FEEDEE_VITE_HMR_HOST:-feedee.localhost}
+      - VITE_CLIENT_PORT=${FEEDEE_VITE_CLIENT_PORT:-5174}
+      - VITE_DEV_URL=${FEEDEE_VITE_DEV_URL:-http://feedee.localhost:5174}
     volumes:
       - .:/app
       - vite_node_modules:/app/node_modules
@@ -59,7 +73,9 @@ services:
       - DJANGO_BASE_URL=http://web:8000
       - WORKER_API_TOKEN=${WORKER_API_TOKEN:-}
     depends_on:
-      - web
+      web:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   vite_node_modules:

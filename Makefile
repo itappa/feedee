@@ -32,9 +32,9 @@ down: ## Stop dev environment
 	$(COMPOSE) down
 
 proxy-dev-up: ## Start dev environment behind shared local-proxy nginx
-	docker compose -f compose.local-proxy.yaml up -d
+	docker compose -f compose.local-proxy.yaml up -d --wait
 proxy-dev-up-build: ## Build and start dev environment behind shared local-proxy nginx
-	docker compose -f compose.local-proxy.yaml up -d --build
+	docker compose -f compose.local-proxy.yaml up -d --build --wait
 proxy-dev-down: ## Stop dev environment started with proxy-dev-up
 	docker compose -f compose.local-proxy.yaml down
 

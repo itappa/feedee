@@ -1,6 +1,11 @@
 import { resolve } from "path";
 import { defineConfig } from "vite";
 
+const vitePort = Number(process.env.VITE_PORT || 5173);
+const viteClientPort = Number(process.env.VITE_CLIENT_PORT || vitePort);
+const viteHmrHost = process.env.VITE_HMR_HOST || "localhost";
+const viteDevUrl = process.env.VITE_DEV_URL || `http://${viteHmrHost}:${viteClientPort}`;
+
 export default defineConfig({
   root: resolve(__dirname, "frontend"),
   base: "/static/",
@@ -15,7 +20,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
-    origin: "http://localhost:5173",
+    host: "0.0.0.0",
+    port: vitePort,
+    strictPort: true,
+    origin: viteDevUrl,
+    hmr: {
+      host: viteHmrHost,
+      clientPort: viteClientPort,
+    },
   },
 });
