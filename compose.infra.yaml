@@ -1,14 +1,14 @@
-# Local multi-proxy standalone compose for feedee.
+# Infra-connected compose for feedee.
 #
 # feedee's default compose.yaml hard-codes port 8000:8000 and 5173:5173.
 # Because Docker Compose merges arrays (append only), those bindings cannot
-# be removed via an overlay. This file is therefore a complete standalone
+# be removed via an overlay. This file is therefore a complete compose
 # configuration — use it ALONE, not combined with compose.yaml.
 #
 # Usage:
-#   docker compose -f compose.local-proxy.yaml up -d
+#   docker compose -f compose.infra.yaml up -d
 #     OR:
-#   make proxy-dev-up
+#   make infra-up
 #
 # What changes vs. compose.yaml:
 #   - web: no "8000:8000" host port (traffic arrives via local-proxy nginx)

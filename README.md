@@ -102,16 +102,23 @@ make logs     # ログ確認
 make down     # 停止
 ```
 
-### 本番環境
+### 本番環境（standalone）
 
 ```bash
 # .env ファイルを作成（必須項目）
 cp .env.example .env
 # DJANGO_SECRET_KEY, POSTGRES_PASSWORD, WORKER_API_TOKEN を設定
 
-make prod-up       # 起動
-make prod-migrate  # マイグレーション
-make prod-logs     # ログ確認
+make standalone-up       # 起動
+make standalone-migrate  # マイグレーション
+make standalone-logs     # ログ確認
+```
+
+### 本番環境（infra 連携）
+
+```bash
+make infra-up    # 起動
+make infra-down  # 停止
 ```
 
 ## API エンドポイント
@@ -174,23 +181,27 @@ make prod-logs     # ログ確認
 ## Make コマンド
 
 ```
-make dev            開発環境起動（フォアグラウンド）
-make up             開発環境起動（バックグラウンド）
-make down           開発環境停止
-make logs           開発ログ表示
-make test           テスト実行
-make migrate        マイグレーション実行
-make shell          Django シェル
-make worker         RSS ワーカーをローカル実行
+make dev               開発環境起動（フォアグラウンド）
+make up                開発環境起動（バックグラウンド）
+make down              開発環境停止
+make logs              開発ログ表示
+make test              テスト実行
+make migrate           マイグレーション実行
+make shell             Django シェル
+make worker            RSS ワーカーをローカル実行
 
-make prod-up        本番環境起動
-make prod-down      本番環境停止
-make prod-logs      本番ログ表示
-make prod-migrate   本番マイグレーション
-make prod-shell     本番 Django シェル
+make standalone-up      単体完結の本番環境起動
+make standalone-down    単体完結の本番環境停止
+make standalone-logs    単体完結の本番ログ表示
+make standalone-migrate 単体完結の本番マイグレーション
+make standalone-shell   単体完結の本番 Django シェル
 
-make backup-dev     開発 DB バックアップ
-make backup-prod    本番 DB バックアップ
-make restore-dev    開発 DB リストア
-make restore-prod   本番 DB リストア
+make infra-up           外部インフラ連携環境起動
+make infra-up-build     外部インフラ連携環境をビルドして起動
+make infra-down         外部インフラ連携環境停止
+
+make backup-dev         開発 DB バックアップ
+make backup-prod        本番 DB バックアップ
+make restore-dev        開発 DB リストア
+make restore-prod       本番 DB リストア
 ```

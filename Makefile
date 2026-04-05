@@ -1,16 +1,19 @@
-.PHONY: help dev up down logs build test migrate shell worker \
-       prod-up prod-down prod-logs prod-build prod-migrate prod-shell \
-       backup backup-dev backup-prod restore-dev restore-prod \
+.PHONY: help \
+       dev up down logs build test migrate shell worker \
+       standalone-up standalone-down standalone-logs standalone-build standalone-migrate standalone-shell \
+       infra-up infra-up-build infra-down \
+       backup backup-dev backup-prod restore-dev restore-prod list-backups \
        lint fmt clean \
        fe-install fe-dev fe-build
 
 # -------------------------------------------------------------------
 # Variables
 # -------------------------------------------------------------------
-COMPOSE         := docker compose
-COMPOSE_PROD    := docker compose -f compose.prod.yaml
-TIMESTAMP       := $(shell date +%Y%m%d_%H%M%S)
-BACKUP_DIR      := backups
+COMPOSE            := docker compose
+COMPOSE_STANDALONE := docker compose -f compose.standalone.yaml
+COMPOSE_INFRA      := docker compose -f compose.infra.yaml
+TIMESTAMP          := $(shell date +%Y%m%d_%H%M%S)
+BACKUP_DIR         := backups
 
 # -------------------------------------------------------------------
 # Help
@@ -31,13 +34,6 @@ up: ## Start dev environment (background)
 down: ## Stop dev environment
 	$(COMPOSE) down
 
-proxy-dev-up: ## Start dev environment behind shared local-proxy nginx
-	docker compose -f compose.local-proxy.yaml up -d --wait
-proxy-dev-up-build: ## Build and start dev environment behind shared local-proxy nginx
-	docker compose -f compose.local-proxy.yaml up -d --build --wait
-proxy-dev-down: ## Stop dev environment started with proxy-dev-up
-	docker compose -f compose.local-proxy.yaml down
-
 logs: ## Tail dev logs
 	$(COMPOSE) logs -f
 
@@ -57,25 +53,37 @@ worker: ## Run RSS worker locally
 	go run rss_worker/main.go
 
 # ===================================================================
-#  Production
+#  Production (standalone)
 # ===================================================================
-prod-up: ## Start production environment
-	$(COMPOSE_PROD) up --build -d
+standalone-up: ## Start standalone production environment
+	$(COMPOSE_STANDALONE) up --build -d
 
-prod-down: ## Stop production environment
-	$(COMPOSE_PROD) down
+standalone-down: ## Stop standalone production environment
+	$(COMPOSE_STANDALONE) down
 
-prod-logs: ## Tail production logs
-	$(COMPOSE_PROD) logs -f
+standalone-logs: ## Tail standalone production logs
+	$(COMPOSE_STANDALONE) logs -f
 
-prod-build: ## Build production images
-	$(COMPOSE_PROD) build
+standalone-build: ## Build standalone production images
+	$(COMPOSE_STANDALONE) build
 
-prod-migrate: ## Run migrations in production
-	$(COMPOSE_PROD) exec web python manage.py migrate --noinput
+standalone-migrate: ## Run migrations in standalone production
+	$(COMPOSE_STANDALONE) exec web python manage.py migrate --noinput
 
-prod-shell: ## Open Django shell in production
-	$(COMPOSE_PROD) exec web python manage.py shell
+standalone-shell: ## Open Django shell in standalone production
+	$(COMPOSE_STANDALONE) exec web python manage.py shell
+
+# ===================================================================
+#  Production (shared infra)
+# ===================================================================
+infra-up: ## Start production environment connected to shared infra
+	$(COMPOSE_INFRA) up -d --wait
+
+infra-up-build: ## Build and start production environment connected to shared infra
+	$(COMPOSE_INFRA) up -d --build --wait
+
+infra-down: ## Stop shared-infra production environment
+	$(COMPOSE_INFRA) down
 
 # ===================================================================
 #  Backup
@@ -87,7 +95,7 @@ backup-dev: ## Backup dev SQLite database
 
 backup-prod: ## Backup production PostgreSQL database
 	@mkdir -p $(BACKUP_DIR)/prod
-	$(COMPOSE_PROD) exec -T db pg_dump \
+	$(COMPOSE_STANDALONE) exec -T db pg_dump \
 		-U $${POSTGRES_USER:-feedee} \
 		-d $${POSTGRES_DB:-feedee} \
 		--clean --if-exists \
@@ -111,7 +119,7 @@ restore-prod: ## Restore production PostgreSQL (usage: make restore-prod FILE=ba
 		echo "Available backups:"; ls -1t $(BACKUP_DIR)/prod/ 2>/dev/null || echo "  (none)"; \
 		exit 1; \
 	fi
-	gunzip -c $(FILE) | $(COMPOSE_PROD) exec -T db psql \
+	gunzip -c $(FILE) | $(COMPOSE_STANDALONE) exec -T db psql \
 		-U $${POSTGRES_USER:-feedee} \
 		-d $${POSTGRES_DB:-feedee}
 	@echo "✓ Restored from $(FILE)"

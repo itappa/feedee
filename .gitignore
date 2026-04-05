@@ -1,35 +1,48 @@
-# Python-generated files
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+
+# Python
 __pycache__/
 *.py[oc]
+*.pyo
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # Virtual environments
-.venv
+.venv/
+venv/
 
-# Environment variables (secrets)
+# Local environment files (keep templates tracked)
 .env
+.env.*
+!.env.example
 
-# Database
+# Database and backups
 db.sqlite3
-
-# Database backups
 backups/
 
-# Django collected static files
+# Django collected assets
 staticfiles/
+media/
 
 # Go binary
 bin/rss-worker
 
-# Node.js
+# Node / Vite
 node_modules/
-
-# Vite build output
 static/dist/
+.vite/
 
-# IDE
-.idea/
-.vscode/
