@@ -1,6 +1,6 @@
 .PHONY: help \
        dev up down logs build test migrate shell worker \
-       standalone-up standalone-down standalone-logs standalone-build standalone-migrate standalone-shell \
+       standalone-check-env standalone-up standalone-down standalone-logs standalone-build standalone-migrate standalone-shell \
        infra-up infra-up-build infra-down \
        backup backup-dev backup-prod restore-dev restore-prod list-backups \
        lint fmt clean \
@@ -10,7 +10,7 @@
 # Variables
 # -------------------------------------------------------------------
 COMPOSE            := docker compose
-COMPOSE_STANDALONE := docker compose -f compose.standalone.yaml
+COMPOSE_STANDALONE := docker compose --env-file .env -f compose.standalone.yaml
 COMPOSE_INFRA      := docker compose -f compose.infra.yaml
 TIMESTAMP          := $(shell date +%Y%m%d_%H%M%S)
 BACKUP_DIR         := backups
@@ -55,22 +55,34 @@ worker: ## Run RSS worker locally
 # ===================================================================
 #  Production (standalone)
 # ===================================================================
-standalone-up: ## Start standalone production environment
+standalone-check-env:
+	@if [ ! -f .env ]; then \
+		echo "Missing .env. Run: cp .env.example .env"; \
+		exit 1; \
+	fi
+	@for key in POSTGRES_PASSWORD WORKER_API_TOKEN; do \
+		if ! grep -Eq "^$$key=.+" .env; then \
+			echo "$$key is missing or empty in .env. See .env.example."; \
+			exit 1; \
+		fi; \
+	done
+
+standalone-up: standalone-check-env ## Start standalone production environment
 	$(COMPOSE_STANDALONE) up --build -d
 
 standalone-down: ## Stop standalone production environment
-	$(COMPOSE_STANDALONE) down
+	@POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-dummy} WORKER_API_TOKEN=$${WORKER_API_TOKEN:-dummy} $(COMPOSE_STANDALONE) down
 
 standalone-logs: ## Tail standalone production logs
-	$(COMPOSE_STANDALONE) logs -f
+	@POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-dummy} WORKER_API_TOKEN=$${WORKER_API_TOKEN:-dummy} $(COMPOSE_STANDALONE) logs -f
 
-standalone-build: ## Build standalone production images
+standalone-build: standalone-check-env ## Build standalone production images
 	$(COMPOSE_STANDALONE) build
 
-standalone-migrate: ## Run migrations in standalone production
+standalone-migrate: standalone-check-env ## Run migrations in standalone production
 	$(COMPOSE_STANDALONE) exec web python manage.py migrate --noinput
 
-standalone-shell: ## Open Django shell in standalone production
+standalone-shell: standalone-check-env ## Open Django shell in standalone production
 	$(COMPOSE_STANDALONE) exec web python manage.py shell
 
 # ===================================================================
@@ -93,7 +105,7 @@ backup-dev: ## Backup dev SQLite database
 	cp db.sqlite3 $(BACKUP_DIR)/dev/db_$(TIMESTAMP).sqlite3
 	@echo "✓ Dev backup: $(BACKUP_DIR)/dev/db_$(TIMESTAMP).sqlite3"
 
-backup-prod: ## Backup production PostgreSQL database
+backup-prod: standalone-check-env ## Backup production PostgreSQL database
 	@mkdir -p $(BACKUP_DIR)/prod
 	$(COMPOSE_STANDALONE) exec -T db pg_dump \
 		-U $${POSTGRES_USER:-feedee} \
@@ -113,7 +125,7 @@ restore-dev: ## Restore dev SQLite (usage: make restore-dev FILE=backups/dev/db_
 	cp $(FILE) db.sqlite3
 	@echo "✓ Restored from $(FILE)"
 
-restore-prod: ## Restore production PostgreSQL (usage: make restore-prod FILE=backups/prod/db_xxx.sql.gz)
+restore-prod: standalone-check-env ## Restore production PostgreSQL (usage: make restore-prod FILE=backups/prod/db_xxx.sql.gz)
 	@if [ -z "$(FILE)" ]; then \
 		echo "Usage: make restore-prod FILE=backups/prod/db_xxx.sql.gz"; \
 		echo "Available backups:"; ls -1t $(BACKUP_DIR)/prod/ 2>/dev/null || echo "  (none)"; \
