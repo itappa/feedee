@@ -3,7 +3,52 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.authtoken.models import Token
 
-from .models import Article, ArticleUserState, Bookmark, Feed, Tag
+from .models import Article, ArticleUserState, Bookmark, Feed, Tag, UserProfile
+
+
+class AuthenticationFlowTests(TestCase):
+    def test_login_page_shows_register_link(self):
+        response = self.client.get(reverse("login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("register"))
+        self.assertContains(response, "Create an account")
+
+    def test_register_page_creates_user_and_logs_in(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "email": "newuser@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse("rss-dashboard"))
+        user = get_user_model().objects.get(email="newuser@example.com")
+        self.assertEqual(user.username, "newuser@example.com")
+        self.assertTrue(response.context["user"].is_authenticated)
+        self.assertTrue(UserProfile.objects.filter(user=user).exists())
+
+    def test_register_rejects_duplicate_email(self):
+        get_user_model().objects.create_user(
+            username="existing",
+            email="dup@example.com",
+            password="Password123!",
+        )
+
+        response = self.client.post(
+            reverse("register"),
+            {
+                "email": "dup@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "An account with this email already exists.")
 
 
 class HTMLSanitizationTests(TestCase):

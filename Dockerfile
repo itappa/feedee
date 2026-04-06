@@ -34,9 +34,11 @@ COPY . .
 # Copy Vite build output
 COPY --from=frontend /app/static/dist/ static/dist/
 
-RUN chmod +x docker/entrypoint.sh
+RUN mkdir -p /app/staticfiles \
+  && chmod 775 /app/staticfiles \
+  && chmod +x docker/entrypoint.sh \
+  && chown -R app:app /app
 
-RUN chown -R app:app /app
 USER app
 
 EXPOSE 8000

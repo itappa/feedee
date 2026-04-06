@@ -4,6 +4,7 @@ import subprocess
 from urllib.parse import urlencode, urlparse
 
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
@@ -20,6 +21,7 @@ from .forms import (
     BookmarkForm,
     FeedCreateForm,
     FeedUpdateForm,
+    SignUpForm,
     StyledPasswordChangeForm,
     TagForm,
     UserProfileForm,
@@ -189,6 +191,31 @@ def run_rss_worker():
             logger.warning(f"RSS worker script not found at {worker_script}")
     except Exception as e:
         logger.error(f"Failed to start RSS worker: {e}")
+
+
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect("rss-dashboard")
+
+    next_url = request.POST.get("next") or request.GET.get("next", "")
+
+    if request.method == "POST":
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            UserProfile.objects.get_or_create(user=user)
+            login(request, user, backend="apps.rssapp.backends.EmailBackend")
+            messages.success(request, "Account created. Welcome to Feedee.")
+
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
+                return redirect(next_url)
+            return redirect("rss-dashboard")
+    else:
+        form = SignUpForm()
+
+    return render(request, "auth/register.html", {"form": form, "next": next_url})
 
 
 def _build_article_list_context(request, base_qs, feed_name_fn=None):
