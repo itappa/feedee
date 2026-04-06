@@ -1,7 +1,14 @@
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm as DjangoPasswordChangeForm
+from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import (
+    AuthenticationForm,
+    PasswordChangeForm as DjangoPasswordChangeForm,
+    UserCreationForm,
+)
 
 from .models import Bookmark, Feed, Tag, UserProfile
+
+User = get_user_model()
 
 _INPUT_CLASS = (
     "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm "
@@ -139,10 +146,58 @@ class EmailLoginForm(AuthenticationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["password"].widget.attrs.update({
-            "class": _INPUT_CLASS,
-            "placeholder": "Password",
-        })
+        self.fields["password"].widget.attrs.update(
+            {
+                "class": _INPUT_CLASS,
+                "placeholder": "Password",
+            }
+        )
+
+
+class SignUpForm(UserCreationForm):
+    email = forms.EmailField(
+        label="Email",
+        widget=forms.EmailInput(
+            attrs={
+                "class": _INPUT_CLASS,
+                "placeholder": "you@example.com",
+                "autofocus": True,
+            }
+        ),
+    )
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ("email",)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["password1"].widget.attrs.update(
+            {
+                "class": _INPUT_CLASS,
+                "placeholder": "Create a password",
+            }
+        )
+        self.fields["password2"].widget.attrs.update(
+            {
+                "class": _INPUT_CLASS,
+                "placeholder": "Confirm your password",
+            }
+        )
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("An account with this email already exists.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        user.username = self.cleaned_data["email"]
+        if commit:
+            user.save()
+        return user
 
 
 class StyledPasswordChangeForm(DjangoPasswordChangeForm):

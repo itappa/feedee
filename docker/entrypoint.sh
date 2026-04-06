@@ -1,6 +1,15 @@
 #!/bin/sh
 set -e
 
+echo "Preparing static files directory..."
+mkdir -p /app/staticfiles
+
+if [ ! -w /app/staticfiles ]; then
+    echo "Error: /app/staticfiles is not writable"
+    ls -ld /app /app/staticfiles || true
+    exit 1
+fi
+
 echo "Running migrations..."
 python manage.py migrate --noinput
 

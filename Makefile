@@ -68,7 +68,7 @@ standalone-check-env:
 	done
 
 standalone-up: standalone-check-env ## Start standalone production environment
-	$(COMPOSE_STANDALONE) up --build -d
+	$(COMPOSE_STANDALONE) up --build -d --wait
 
 standalone-down: ## Stop standalone production environment
 	@POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-dummy} WORKER_API_TOKEN=$${WORKER_API_TOKEN:-dummy} $(COMPOSE_STANDALONE) down

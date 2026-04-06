@@ -42,6 +42,13 @@
                 Sign in
             </button>
 
+            <p class="text-center text-sm text-gray-600">
+                New to Feedee?
+                <a href="{% url 'register' %}" class="font-semibold text-brand-600 hover:text-brand-700">
+                    Create an account
+                </a>
+            </p>
+
             {% if next %}
                 <input type="hidden" name="next" value="{{ next }}">
             {% endif %}
