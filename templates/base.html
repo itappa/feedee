@@ -6,11 +6,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Feedee{% endblock %}</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
+    <script>
+        (function() {
+            try {
+                var preferred = localStorage.getItem('feedee-theme') || '{{ theme_preference|default:"system"|escapejs }}' || 'system';
+                var resolved = preferred === 'system'
+                    ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : preferred;
+                var root = document.documentElement;
+                root.dataset.theme = preferred;
+                root.classList.toggle('theme-dark', resolved === 'dark');
+                root.classList.toggle('theme-light', resolved !== 'dark');
+            } catch (e) {}
+        })();
+    </script>
+    <style>
+        :root { color-scheme: light; }
+        html.theme-dark { color-scheme: dark; }
+        html.theme-dark body,
+        html.theme-dark main { background-color: #0b1220 !important; color: #e5e7eb !important; }
+        html.theme-dark header,
+        html.theme-dark aside,
+        html.theme-dark .bg-white,
+        html.theme-dark .bg-gray-50,
+        html.theme-dark .bg-gray-50\/50 { background-color: #111827 !important; }
+        html.theme-dark .border-gray-100,
+        html.theme-dark .border-gray-200 { border-color: #334155 !important; }
+        html.theme-dark .text-gray-900 { color: #f8fafc !important; }
+        html.theme-dark .text-gray-700,
+        html.theme-dark .text-gray-600,
+        html.theme-dark .text-gray-500 { color: #cbd5e1 !important; }
+        html.theme-dark .text-gray-400 { color: #94a3b8 !important; }
+        html.theme-dark input,
+        html.theme-dark select,
+        html.theme-dark textarea { background-color: #0f172a !important; color: #f8fafc !important; border-color: #334155 !important; }
+    </style>
     {% vite_assets "js/main.js" %}
     <link rel="stylesheet" href="{% static 'css/article-prose.css' %}">
     {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full bg-gray-50 text-gray-900 font-sans antialiased">
+<body class="h-full bg-gray-50 text-gray-900 font-sans antialiased transition-colors">
 
 {# ── Top Navigation Bar ─────────────────────────────── #}
 <header class="fixed top-0 inset-x-0 z-50 h-14 bg-white border-b border-gray-200 shadow-soft flex items-center px-4 md:px-6 gap-4">
@@ -98,7 +133,7 @@
            class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'dashboard' and state_filter == 'all' %}active{% endif %}">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
             All articles
-            {% if sidebar_total_unread %}<span class="ml-auto text-xs font-medium text-brand-600 bg-brand-50 rounded-full px-2 py-0.5">{{ sidebar_total_unread }}</span>{% endif %}
+            <span class="ml-auto text-[11px] font-medium text-brand-700 bg-brand-50 rounded-full px-2 py-0.5" title="{{ sidebar_total_unread }} unread articles">{{ sidebar_total_unread }} unread</span>
         </a>
         <a href="{% url 'rss-dashboard' %}?state=read-later"
            class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if state_filter == 'read-later' %}active{% endif %}">
@@ -143,6 +178,7 @@
     </div>
     <div class="border-t border-gray-100 mx-3"></div>
 
+    {% if request.user.is_authenticated %}
     {# ── Bookmarks Section ──────────────────────────── #}
     <nav class="px-3 pt-3 pb-2">
         <a href="{% url 'bookmark-list' %}"
@@ -172,6 +208,7 @@
             Settings
         </a>
     </div>
+    {% endif %}
 </aside>
 
 {# ── Main Content ───────────────────────────────────── #}

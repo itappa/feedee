@@ -16,6 +16,20 @@ class Feed(models.Model):
 
 
 class Article(models.Model):
+    CONTENT_SOURCE_CHOICES = [
+        ("feed", "Provided by feed"),
+        ("extracted", "Extracted from source article"),
+        ("summary", "Summary fallback"),
+        ("empty", "No readable content"),
+    ]
+    EXTRACTION_STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("provided", "Provided by feed"),
+        ("success", "Extraction succeeded"),
+        ("failed", "Extraction failed"),
+        ("skipped", "Extraction skipped"),
+    ]
+
     # Allowed HTML tags for sanitized content
     ALLOWED_TAGS = {
         "p",
@@ -66,6 +80,17 @@ class Article(models.Model):
     hash = models.CharField(max_length=64, unique=True)
     summary = models.TextField(blank=True, default="")
     content = models.TextField(blank=True, default="")
+    content_source = models.CharField(
+        max_length=20,
+        choices=CONTENT_SOURCE_CHOICES,
+        default="summary",
+    )
+    extraction_status = models.CharField(
+        max_length=20,
+        choices=EXTRACTION_STATUS_CHOICES,
+        default="pending",
+    )
+    extracted_at = models.DateTimeField(null=True, blank=True)
     image_url = models.URLField(max_length=2048, blank=True, default="")
     published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -129,6 +154,11 @@ class UserProfile(models.Model):
         ("published_desc", "Newest first"),
         ("published_asc", "Oldest first"),
     ]
+    THEME_CHOICES = [
+        ("system", "System"),
+        ("light", "Light"),
+        ("dark", "Dark"),
+    ]
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -139,6 +169,11 @@ class UserProfile(models.Model):
         max_length=20, choices=SORT_CHOICES, default="published_desc"
     )
     items_per_page = models.PositiveIntegerField(default=20)
+    theme_preference = models.CharField(
+        max_length=10,
+        choices=THEME_CHOICES,
+        default="system",
+    )
 
     def __str__(self) -> str:
         return f"Profile({self.user.username})"

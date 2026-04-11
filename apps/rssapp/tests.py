@@ -1,5 +1,7 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.authtoken.models import Token
 
@@ -13,6 +15,20 @@ class AuthenticationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("register"))
         self.assertContains(response, "Create an account")
+
+    def test_bookmarks_page_redirects_to_login_when_unauthenticated(self):
+        response = self.client.get(reverse("bookmark-list"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('bookmark-list')}",
+        )
+
+    def test_anonymous_dashboard_hides_bookmarks_sidebar(self):
+        response = self.client.get(reverse("rss-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("bookmark-list"))
 
     def test_register_page_creates_user_and_logs_in(self):
         response = self.client.post(
@@ -480,6 +496,196 @@ class FeedArticleBindingTests(TestCase):
         self.assertContains(summary_response, "Summary only text")
 
 
+class FullTextExtractionMVPTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="worker",
+            email="worker@example.com",
+            password="password123",
+        )
+        self.token = Token.objects.create(user=self.user)
+        self.auth_header = {"HTTP_AUTHORIZATION": f"Token {self.token.key}"}
+        self.feed = Feed.objects.create(
+            name="Extraction Feed",
+            url="https://example.com/rss.xml",
+        )
+
+    @patch("apps.rssapp.views.extract_article_content")
+    def test_ingest_backfills_full_text_when_feed_content_missing(self, mock_extract):
+        mock_extract.return_value = {
+            "content": "<p>Extracted article body</p>",
+            "source": "extracted",
+            "status": "success",
+        }
+
+        response = self.client.post(
+            reverse("article-ingest"),
+            data=[
+                {
+                    "feed_id": self.feed.id,
+                    "title": "Needs extraction",
+                    "link": "https://example.com/posts/needs-extraction",
+                    "guid": "needs-extraction-guid",
+                    "summary": "Short feed summary",
+                }
+            ],
+            content_type="application/json",
+            **self.auth_header,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        article = Article.objects.get(hash__isnull=False, title="Needs extraction")
+        self.assertEqual(article.content, "<p>Extracted article body</p>")
+        self.assertEqual(article.content_source, "extracted")
+        self.assertEqual(article.extraction_status, "success")
+        mock_extract.assert_called_once_with(
+            "https://example.com/posts/needs-extraction"
+        )
+
+    @patch("apps.rssapp.views.extract_article_content")
+    def test_ingest_keeps_feed_content_without_triggering_extraction(
+        self, mock_extract
+    ):
+        response = self.client.post(
+            reverse("article-ingest"),
+            data=[
+                {
+                    "feed_id": self.feed.id,
+                    "title": "Already has content",
+                    "link": "https://example.com/posts/has-content",
+                    "guid": "has-content-guid",
+                    "content": "<p>Provided by feed</p>",
+                }
+            ],
+            content_type="application/json",
+            **self.auth_header,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        article = Article.objects.get(title="Already has content")
+        self.assertEqual(article.content, "<p>Provided by feed</p>")
+        self.assertEqual(article.content_source, "feed")
+        self.assertEqual(article.extraction_status, "provided")
+        mock_extract.assert_not_called()
+
+    @override_settings(FULL_TEXT_EXTRACTION_ENABLED=True)
+    @patch("apps.rssapp.views.extract_article_content")
+    def test_bulk_ingest_skips_inline_extraction_to_avoid_timeouts(self, mock_extract):
+        mock_extract.return_value = {
+            "content": "",
+            "source": "summary",
+            "status": "failed",
+        }
+
+        response = self.client.post(
+            reverse("article-ingest"),
+            data=[
+                {
+                    "feed_id": self.feed.id,
+                    "title": "Batch item 1",
+                    "link": "https://example.com/posts/batch-1",
+                    "guid": "batch-guid-1",
+                    "summary": "Summary one",
+                },
+                {
+                    "feed_id": self.feed.id,
+                    "title": "Batch item 2",
+                    "link": "https://example.com/posts/batch-2",
+                    "guid": "batch-guid-2",
+                    "summary": "Summary two",
+                },
+            ],
+            content_type="application/json",
+            **self.auth_header,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Article.objects.filter(feed=self.feed).count(), 2)
+        self.assertEqual(
+            Article.objects.filter(
+                content_source="summary", extraction_status="skipped"
+            ).count(),
+            2,
+        )
+        mock_extract.assert_not_called()
+
+
+class UserPreferenceMVPTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="reader",
+            email="reader@example.com",
+            password="password123",
+        )
+        self.profile = UserProfile.objects.create(user=self.user)
+
+    def test_account_settings_can_save_theme_preference(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("settings-account"),
+            data={
+                "form_action": "profile",
+                "default_sort": "published_desc",
+                "items_per_page": 20,
+                "theme_preference": "dark",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.theme_preference, "dark")
+        self.assertContains(response, "Preferences saved.")
+
+
+class BookmarkLinkBehaviorTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="bookmarker",
+            email="bookmarker@example.com",
+            password="password123",
+        )
+        self.client.force_login(self.user)
+        self.feed = Feed.objects.create(
+            name="Example Feed",
+            url="https://example.com/rss.xml",
+        )
+        self.article = Article.objects.create(
+            feed=self.feed,
+            title="Reader-backed article",
+            link="https://example.com/posts/reader-backed",
+            normalized_link="https://example.com/posts/reader-backed",
+            guid="reader-backed-guid",
+            hash="reader-backed-hash",
+        )
+
+    def test_bookmark_from_article_links_to_reader_view(self):
+        Bookmark.objects.create(
+            user=self.user,
+            url=self.article.link,
+            title=self.article.title,
+            source_article=self.article,
+        )
+
+        response = self.client.get(reverse("bookmark-list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("article-reader", args=[self.article.id]))
+
+    def test_manual_bookmark_keeps_external_link(self):
+        Bookmark.objects.create(
+            user=self.user,
+            url="https://external.example.com/manual",
+            title="Manual Bookmark",
+        )
+
+        response = self.client.get(reverse("bookmark-list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'href="https://external.example.com/manual"')
+
+
 class FeedArticlesViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
@@ -552,3 +758,36 @@ class FeedArticlesViewTests(TestCase):
         content = response.content.decode()
         self.assertIn("All", content)
         self.assertIn("Favorites", content)
+
+    def test_dashboard_sidebar_marks_all_articles_badge_as_unread(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("rss-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "3 unread")
+
+    def test_dashboard_sidebar_unread_count_is_not_inflated_by_other_users(self):
+        other_user = get_user_model().objects.create_user(
+            username="another-reader",
+            email="another-reader@example.com",
+            password="password123",
+        )
+        self.client.force_login(self.user)
+
+        for article in (self.article_a1, self.article_a2, self.article_b1):
+            ArticleUserState.objects.create(
+                user=self.user, article=article, is_read=True
+            )
+
+        ArticleUserState.objects.create(
+            user=other_user, article=self.article_a1, is_read=True
+        )
+        ArticleUserState.objects.create(
+            user=other_user, article=self.article_a2, is_read=True
+        )
+
+        response = self.client.get(reverse("rss-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "0 unread")

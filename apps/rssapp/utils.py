@@ -3,13 +3,18 @@ import ipaddress
 import logging
 import socket
 from typing import Optional
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
 
 
 logger = logging.getLogger(__name__)
+
+try:
+    import trafilatura
+except ImportError:  # pragma: no cover - optional dependency
+    trafilatura = None
 
 
 def category_label(value):
@@ -58,6 +63,154 @@ def _is_private_ip(hostname: str) -> bool:
     return False
 
 
+def _fetch_html_response(url: str, *, timeout: int = 8) -> Optional[requests.Response]:
+    """Fetch an external HTML document while preserving the existing SSRF guardrails."""
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https"):
+        return None
+    if _is_private_ip(parts.hostname or ""):
+        return None
+
+    resp = requests.get(
+        url,
+        timeout=timeout,
+        headers={
+            "User-Agent": "Feedee/1.0 (+full-text extraction)",
+            "Accept": "text/html,application/xhtml+xml",
+        },
+        allow_redirects=True,
+    )
+    resp.raise_for_status()
+
+    content_type = resp.headers.get("content-type", "")
+    if "html" not in content_type.lower():
+        return None
+
+    return resp
+
+
+def _extract_content_with_bs4(html: str, url: str) -> str:
+    """Fallback article extraction when a dedicated extractor is unavailable."""
+    soup = BeautifulSoup(html, "html.parser")
+
+    for selector in (
+        "script",
+        "style",
+        "noscript",
+        "iframe",
+        "nav",
+        "aside",
+        "footer",
+        "form",
+        "button",
+        "svg",
+    ):
+        for node in soup.select(selector):
+            node.decompose()
+
+    for selector in (
+        ".share",
+        ".sharing",
+        ".social",
+        ".sidebar",
+        ".related",
+        ".recommend",
+        ".comments",
+        ".advert",
+        ".ads",
+        "[role='navigation']",
+        "[aria-label='breadcrumb']",
+    ):
+        for node in soup.select(selector):
+            node.decompose()
+
+    root = (
+        soup.find("article")
+        or soup.find("main")
+        or soup.select_one("[itemprop='articleBody']")
+        or soup.select_one(
+            ".post-content, .entry-content, .article-content, .content-body, .post-body, .article-body, .entry-body"
+        )
+        or soup.body
+    )
+    if root is None:
+        return ""
+
+    for tag in root.select("a[href]"):
+        tag["href"] = urljoin(url, tag.get("href", ""))
+    for tag in root.select("img[src]"):
+        tag["src"] = urljoin(url, tag.get("src", ""))
+
+    fragments = []
+    for node in root.find_all(
+        [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "p",
+            "ul",
+            "ol",
+            "li",
+            "blockquote",
+            "pre",
+            "code",
+            "table",
+            "img",
+        ]
+    ):
+        if node.name == "img" and not node.get("src"):
+            continue
+        if node.name != "img" and not node.get_text(" ", strip=True):
+            continue
+        fragments.append(str(node))
+
+    return "\n".join(fragments).strip()
+
+
+def extract_article_content(url: str) -> dict:
+    """Best-effort full-text extraction with a clean summary fallback contract."""
+    try:
+        response = _fetch_html_response(url)
+        if response is None:
+            return {"content": "", "source": "summary", "status": "skipped"}
+
+        html = response.text
+        extracted = ""
+        if trafilatura is not None:
+            try:
+                extracted = (
+                    trafilatura.extract(
+                        html,
+                        url=url,
+                        output_format="html",
+                        include_links=True,
+                        include_images=True,
+                        include_tables=True,
+                        favor_recall=True,
+                    )
+                    or ""
+                ).strip()
+            except Exception:
+                logger.debug("Trafilatura extraction failed for %s", url, exc_info=True)
+
+        if not extracted:
+            extracted = _extract_content_with_bs4(html, url)
+
+        if extracted:
+            return {
+                "content": extracted,
+                "source": "extracted",
+                "status": "success",
+            }
+        return {"content": "", "source": "summary", "status": "failed"}
+    except Exception:
+        logger.info("Failed to extract article content for %s", url, exc_info=True)
+        return {"content": "", "source": "summary", "status": "failed"}
+
+
 def fetch_url_metadata(url: str) -> dict:
     """
     Fetch a URL and extract title, description, and OGP thumbnail.
@@ -66,22 +219,8 @@ def fetch_url_metadata(url: str) -> dict:
     result = {"title": "", "description": "", "thumbnail_url": ""}
 
     try:
-        parts = urlsplit(url)
-        if parts.scheme not in ("http", "https"):
-            return result
-        if _is_private_ip(parts.hostname or ""):
-            return result
-
-        resp = requests.get(
-            url,
-            timeout=5,
-            headers={"User-Agent": "Feedee/1.0 (bookmark metadata fetcher)"},
-            allow_redirects=True,
-        )
-        resp.raise_for_status()
-
-        content_type = resp.headers.get("content-type", "")
-        if "html" not in content_type:
+        resp = _fetch_html_response(url, timeout=5)
+        if resp is None:
             return result
 
         soup = BeautifulSoup(resp.content, "html.parser")

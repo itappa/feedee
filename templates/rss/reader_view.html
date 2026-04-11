@@ -59,10 +59,15 @@
     {# ── Article ────────────────────────────────────── #}
     <article class="rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden">
         <header class="px-6 md:px-10 pt-8 pb-6 border-b border-gray-100">
-            <div class="flex items-center gap-2 text-xs text-gray-400 mb-3">
+            <div class="flex items-center gap-2 text-xs text-gray-400 mb-3 flex-wrap">
                 <span class="font-medium text-gray-500">{{ article.feed.name|default:"Unknown feed" }}</span>
                 <span>&middot;</span>
                 <time datetime="{{ article.published_at|default:article.created_at|date:'c' }}" title="{{ article.published_at|default:article.created_at|date:'Y-m-d H:i' }}">{{ article.published_at|default:article.created_at|timesince }} ago</time>
+                {% if article.content_source == "extracted" %}
+                    <span class="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 border border-emerald-200">Full text</span>
+                {% elif article.content_source == "summary" %}
+                    <span class="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 border border-amber-200">Summary fallback</span>
+                {% endif %}
             </div>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">{{ article.title }}</h1>
         </header>

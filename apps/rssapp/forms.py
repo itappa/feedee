@@ -115,7 +115,7 @@ class BookmarkForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ["default_sort", "items_per_page"]
+        fields = ["default_sort", "items_per_page", "theme_preference"]
         widgets = {
             "default_sort": forms.Select(
                 attrs={
@@ -127,6 +127,11 @@ class UserProfileForm(forms.ModelForm):
                     "class": _INPUT_CLASS,
                     "min": "5",
                     "max": "100",
+                }
+            ),
+            "theme_preference": forms.Select(
+                attrs={
+                    "class": _INPUT_CLASS,
                 }
             ),
         }

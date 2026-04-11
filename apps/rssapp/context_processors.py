@@ -15,17 +15,18 @@ def sidebar_feeds(request):
     feeds_qs = Feed.objects.filter(is_active=True).order_by("display_order", "name")
     if is_auth:
         feeds_qs = feeds_qs.annotate(
-            article_count=Count("articles"),
+            article_count=Count("articles", distinct=True),
             read_count=Count(
                 "articles",
                 filter=Q(
                     articles__user_states__user=user,
                     articles__user_states__is_read=True,
                 ),
+                distinct=True,
             ),
         )
     else:
-        feeds_qs = feeds_qs.annotate(article_count=Count("articles"))
+        feeds_qs = feeds_qs.annotate(article_count=Count("articles", distinct=True))
 
     total_unread = 0
     total_read_later = 0
@@ -62,10 +63,19 @@ def sidebar_feeds(request):
         total_bookmarks = Bookmark.objects.filter(user=user).count()
         sidebar_tags = list(
             Tag.objects.filter(user=user)
-            .annotate(bookmark_count=Count("bookmarks"))
+            .annotate(bookmark_count=Count("bookmarks", distinct=True))
             .order_by("name")
             .values("id", "name", "slug", "color", "bookmark_count")
         )
+
+    theme_preference = "system"
+    if is_auth:
+        try:
+            profile = user.profile
+        except Exception:
+            profile = None
+        if profile:
+            theme_preference = profile.theme_preference or "system"
 
     return {
         "sidebar_feeds": feed_list,
@@ -75,4 +85,5 @@ def sidebar_feeds(request):
         "sidebar_total_favorites": total_favorites,
         "sidebar_tags": sidebar_tags,
         "sidebar_total_bookmarks": total_bookmarks,
+        "theme_preference": theme_preference,
     }

@@ -52,22 +52,29 @@
         {% for bm in bookmark_cards %}
         <div class="group rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden hover:border-gray-300 hover:shadow-md transition-all">
             {% if bm.thumbnail_url %}
-            <a href="{{ bm.url }}" target="_blank" rel="noopener noreferrer" class="block h-36 bg-gray-100 overflow-hidden">
+            <a href="{{ bm.primary_url }}" {% if bm.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %} class="block h-36 bg-gray-100 overflow-hidden">
                 <img src="{{ bm.thumbnail_url }}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy">
             </a>
             {% else %}
-            <a href="{{ bm.url }}" target="_blank" rel="noopener noreferrer" class="h-20 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+            <a href="{{ bm.primary_url }}" {% if bm.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %} class="h-20 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                 <span class="text-2xl font-bold text-gray-300">{{ bm.domain|truncatechars:1|upper }}</span>
             </a>
             {% endif %}
             <div class="p-4">
-                <a href="{{ bm.url }}" target="_blank" rel="noopener noreferrer" class="block">
+                <a href="{{ bm.primary_url }}" {% if bm.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %} class="block">
                     <h3 class="text-sm font-medium text-gray-900 group-hover:text-brand-700 line-clamp-2 transition-colors">{{ bm.title }}</h3>
                 </a>
                 {% if bm.description %}
                     <p class="mt-1 text-xs text-gray-400 line-clamp-2">{{ bm.description|truncatewords:20 }}</p>
                 {% endif %}
-                <p class="mt-2 text-[11px] text-gray-400">{{ bm.domain }}</p>
+                <div class="mt-2 flex items-center justify-between gap-2">
+                    <p class="text-[11px] text-gray-400 truncate">{{ bm.domain }}</p>
+                    {% if bm.source_article_id %}
+                    <a href="{{ bm.url }}" target="_blank" rel="noopener noreferrer" class="text-[11px] font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap">
+                        Original ↗
+                    </a>
+                    {% endif %}
+                </div>
                 {% if bm.tags %}
                 <div class="mt-2 flex flex-wrap gap-1">
                     {% for tag in bm.tags %}

@@ -3,6 +3,7 @@ import os
 import subprocess
 from urllib.parse import urlencode, urlparse
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -11,6 +12,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -34,7 +36,12 @@ from .serializers import (
     FeedSerializer,
     FetchMetadataSerializer,
 )
-from .utils import fetch_url_metadata, generate_article_hash, normalize_url
+from .utils import (
+    extract_article_content,
+    fetch_url_metadata,
+    generate_article_hash,
+    normalize_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +92,22 @@ class ArticleIngestView(APIView):
 
         created_count = 0
         skipped_count = 0
+        batch_size = len(serializer.validated_data)
+        sync_extraction_limit = max(
+            int(getattr(settings, "FULL_TEXT_EXTRACTION_SYNC_LIMIT", 1) or 0),
+            0,
+        )
+        extraction_enabled = getattr(settings, "FULL_TEXT_EXTRACTION_ENABLED", True)
+        allow_inline_extraction = (
+            extraction_enabled and batch_size <= sync_extraction_limit
+        )
+
+        if extraction_enabled and batch_size > sync_extraction_limit:
+            logger.info(
+                "Skipping inline full-text extraction for ingest batch of %d articles (limit=%d)",
+                batch_size,
+                sync_extraction_limit,
+            )
 
         for item in serializer.validated_data:
             normalized_link = normalize_url(item["link"])
@@ -93,6 +116,28 @@ class ArticleIngestView(APIView):
                 normalized_link=normalized_link,
                 guid=item.get("guid"),
             )
+            summary = item.get("summary") or ""
+            content = item.get("content") or ""
+            content_source = "feed" if content else ("summary" if summary else "empty")
+            extraction_status = "provided" if content else "skipped"
+            extracted_at = None
+
+            existing_article = Article.objects.filter(hash=article_hash).first()
+            if not content and existing_article and existing_article.content:
+                content = existing_article.content
+                content_source = existing_article.content_source or "extracted"
+                extraction_status = existing_article.extraction_status or "success"
+                extracted_at = existing_article.extracted_at
+            elif not content and allow_inline_extraction:
+                extraction = extract_article_content(item["link"])
+                extracted_content = extraction.get("content") or ""
+                extraction_status = extraction.get("status") or "failed"
+                if extracted_content:
+                    content = extracted_content
+                    content_source = extraction.get("source") or "extracted"
+                    extracted_at = timezone.now()
+                else:
+                    content_source = "summary" if summary else "empty"
 
             try:
                 _, created = Article.objects.update_or_create(
@@ -103,8 +148,11 @@ class ArticleIngestView(APIView):
                         "link": item["link"],
                         "normalized_link": normalized_link,
                         "guid": item.get("guid") or None,
-                        "summary": item.get("summary") or "",
-                        "content": item.get("content") or "",
+                        "summary": summary,
+                        "content": content,
+                        "content_source": content_source,
+                        "extraction_status": extraction_status,
+                        "extracted_at": extracted_at,
                         "image_url": item.get("image_url") or "",
                         "published_at": item.get("published_at"),
                     },
@@ -660,10 +708,8 @@ class FetchMetadataView(APIView):
 # ── Bookmark views ──────────────────────────────────────
 
 
+@login_required
 def bookmark_list_view(request):
-    if not request.user.is_authenticated:
-        return redirect("rss-dashboard")
-
     query = request.GET.get("q", "").strip()
     tag_slug = request.GET.get("tag", "").strip()
 
@@ -687,10 +733,18 @@ def bookmark_list_view(request):
     bookmark_cards = []
     for bm in page_obj.object_list:
         domain = urlparse(bm.url).netloc
+        has_source_article = bool(bm.source_article_id)
+        primary_url = (
+            reverse("article-reader", args=[bm.source_article_id])
+            if has_source_article
+            else bm.url
+        )
         bookmark_cards.append(
             {
                 "id": bm.id,
                 "url": bm.url,
+                "primary_url": primary_url,
+                "open_in_new_tab": not has_source_article,
                 "title": bm.title,
                 "description": bm.description,
                 "thumbnail_url": bm.thumbnail_url,
@@ -731,10 +785,8 @@ def _save_bookmark_tags(bookmark, tag_names_str, user):
     bookmark.tags.set(tags)
 
 
+@login_required
 def bookmark_add_view(request):
-    if not request.user.is_authenticated:
-        return redirect("rss-dashboard")
-
     if request.method == "POST":
         form = BookmarkForm(request.POST)
         if form.is_valid():
@@ -775,10 +827,8 @@ def bookmark_add_view(request):
     )
 
 
+@login_required
 def bookmark_edit_view(request, bookmark_id):
-    if not request.user.is_authenticated:
-        return redirect("rss-dashboard")
-
     bookmark = get_object_or_404(Bookmark, id=bookmark_id, user=request.user)
 
     if request.method == "POST":
@@ -810,9 +860,8 @@ def bookmark_edit_view(request, bookmark_id):
     )
 
 
+@login_required
 def bookmark_delete_view(request, bookmark_id):
-    if not request.user.is_authenticated:
-        return redirect("rss-dashboard")
     if request.method != "POST":
         return redirect("bookmark-list")
     bookmark = get_object_or_404(Bookmark, id=bookmark_id, user=request.user)
@@ -821,11 +870,9 @@ def bookmark_delete_view(request, bookmark_id):
     return redirect("bookmark-list")
 
 
+@login_required
 def bookmark_from_article_view(request, article_id):
     """Pre-fill bookmark form from an RSS article."""
-    if not request.user.is_authenticated:
-        return redirect("rss-dashboard")
-
     article = get_object_or_404(Article, id=article_id)
 
     # If already bookmarked, redirect to edit
@@ -859,10 +906,8 @@ def bookmark_from_article_view(request, article_id):
 # ── Tag views ───────────────────────────────────────────
 
 
+@login_required
 def tag_list_view(request):
-    if not request.user.is_authenticated:
-        return redirect("rss-dashboard")
-
     if request.method == "POST":
         form = TagForm(request.POST)
         if form.is_valid():
@@ -898,9 +943,8 @@ def tag_list_view(request):
     )
 
 
+@login_required
 def tag_update_view(request, tag_id):
-    if not request.user.is_authenticated:
-        return redirect("rss-dashboard")
     if request.method != "POST":
         return redirect("settings-tags")
 

@@ -1,5 +1,26 @@
 import "../css/main.css";
 
+// ── Theme preference sync ─────────────────────────────────
+(function () {
+  function applyTheme(theme) {
+    var resolved = theme === "system"
+      ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+      : theme;
+    var root = document.documentElement;
+    root.dataset.theme = theme;
+    root.classList.toggle("theme-dark", resolved === "dark");
+    root.classList.toggle("theme-light", resolved !== "dark");
+  }
+
+  var select = document.querySelector("select[name='theme_preference']");
+  if (!select) return;
+
+  select.addEventListener("change", function () {
+    localStorage.setItem("feedee-theme", select.value);
+    applyTheme(select.value);
+  });
+})();
+
 // ── Sidebar toggle (mobile) ──────────────────────────────
 (function () {
   var toggle = document.getElementById("sidebar-toggle");

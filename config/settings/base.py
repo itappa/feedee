@@ -140,6 +140,16 @@ AUTHENTICATION_BACKENDS = [
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
+FULL_TEXT_EXTRACTION_ENABLED = os.environ.get(
+    "FULL_TEXT_EXTRACTION_ENABLED", "true"
+).lower() not in ("0", "false", "no")
+try:
+    FULL_TEXT_EXTRACTION_SYNC_LIMIT = max(
+        int(os.environ.get("FULL_TEXT_EXTRACTION_SYNC_LIMIT", "1")),
+        0,
+    )
+except ValueError:
+    FULL_TEXT_EXTRACTION_SYNC_LIMIT = 1
 
 LOGGING = {
     "version": 1,
