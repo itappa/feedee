@@ -1,6 +1,8 @@
 import logging
 import os
 import subprocess
+import xml.etree.ElementTree as ET
+from datetime import timedelta
 from urllib.parse import urlencode, urlparse
 
 from django.conf import settings
@@ -9,7 +11,8 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -32,6 +35,7 @@ from .models import Article, ArticleUserState, Bookmark, Feed, Tag, UserProfile
 from .serializers import (
     ArticleIngestSerializer,
     ArticleUserStateSerializer,
+    FeedFetchStatusSerializer,
     FeedReorderSerializer,
     FeedSerializer,
     FetchMetadataSerializer,
@@ -48,9 +52,16 @@ logger = logging.getLogger(__name__)
 
 class FeedListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
-    queryset = Feed.objects.filter(is_active=True).order_by("display_order", "id")
     serializer_class = FeedSerializer
     pagination_class = None
+
+    def get_queryset(self):
+        now = timezone.now()
+        return (
+            Feed.objects.filter(is_active=True)
+            .filter(Q(next_fetch_at__isnull=True) | Q(next_fetch_at__lte=now))
+            .order_by("display_order", "id")
+        )
 
 
 class FeedReorderView(APIView):
@@ -81,6 +92,89 @@ class FeedReorderView(APIView):
                 Feed.objects.filter(id=feed_id).update(display_order=order)
 
         return Response({"ok": True}, status=status.HTTP_200_OK)
+
+
+def _update_feed_fetch_state(
+    feed,
+    *,
+    status: str,
+    item_count: int = 0,
+    error: str = "",
+    etag: str = "",
+    last_modified: str = "",
+):
+    now = timezone.now()
+    feed.last_fetched_at = now
+
+    if etag:
+        feed.etag = etag
+    if last_modified:
+        feed.last_modified = last_modified
+
+    if status in {"success", "not_modified"}:
+        feed.last_success_at = now
+        feed.last_error = ""
+        feed.consecutive_failures = 0
+
+        if status == "success" and item_count > 0:
+            next_interval = max(15, min(feed.fetch_interval_minutes, 60))
+        elif status == "not_modified":
+            next_interval = min(max(feed.fetch_interval_minutes, 30) * 2, 240)
+        else:
+            next_interval = min(max(feed.fetch_interval_minutes, 30), 120)
+
+        feed.fetch_interval_minutes = next_interval
+        feed.next_fetch_at = now + timedelta(minutes=next_interval)
+    else:
+        feed.consecutive_failures += 1
+        feed.last_error = (error or "Fetch failed").strip()
+        next_interval = min(60 * max(feed.consecutive_failures, 1), 240)
+        feed.fetch_interval_minutes = next_interval
+        feed.next_fetch_at = now + timedelta(minutes=next_interval)
+        if feed.consecutive_failures >= 5:
+            feed.is_active = False
+
+    feed.save(
+        update_fields=[
+            "last_fetched_at",
+            "last_success_at",
+            "last_error",
+            "consecutive_failures",
+            "etag",
+            "last_modified",
+            "next_fetch_at",
+            "fetch_interval_minutes",
+            "is_active",
+        ]
+    )
+
+
+class FeedFetchStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, feed_id):
+        feed = get_object_or_404(Feed, id=feed_id)
+        serializer = FeedFetchStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        _update_feed_fetch_state(
+            feed,
+            status=serializer.validated_data["status"],
+            item_count=serializer.validated_data.get("item_count", 0),
+            error=serializer.validated_data.get("error") or "",
+            etag=serializer.validated_data.get("etag") or "",
+            last_modified=serializer.validated_data.get("last_modified") or "",
+        )
+
+        return Response(
+            {
+                "ok": True,
+                "next_fetch_at": feed.next_fetch_at,
+                "consecutive_failures": feed.consecutive_failures,
+                "is_active": feed.is_active,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class ArticleIngestView(APIView):
@@ -241,6 +335,115 @@ def run_rss_worker():
         logger.error(f"Failed to start RSS worker: {e}")
 
 
+def _build_opml_document(feeds):
+    root = ET.Element("opml", version="2.0", title="Feedee Subscriptions")
+    head = ET.SubElement(root, "head")
+    ET.SubElement(head, "title").text = "Feedee Subscriptions"
+    body = ET.SubElement(root, "body")
+
+    category_nodes = {}
+    for feed in feeds:
+        category = (feed.category or "").strip()
+        parent = body
+        if category:
+            parent = category_nodes.get(category)
+            if parent is None:
+                parent = ET.SubElement(body, "outline", text=category, title=category)
+                category_nodes[category] = parent
+        ET.SubElement(
+            parent,
+            "outline",
+            text=feed.name,
+            title=feed.name,
+            type="rss",
+            xmlUrl=feed.url,
+            category=category,
+        )
+
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def _iter_opml_feed_entries(node, inherited_category=""):
+    xml_url = (node.attrib.get("xmlUrl") or node.attrib.get("xmlurl") or "").strip()
+    if xml_url:
+        yield {
+            "name": (
+                node.attrib.get("title") or node.attrib.get("text") or xml_url
+            ).strip(),
+            "url": xml_url,
+            "category": inherited_category.strip(),
+        }
+        return
+
+    current_category = (
+        node.attrib.get("title") or node.attrib.get("text") or inherited_category
+    )
+    for child in node.findall("outline"):
+        yield from _iter_opml_feed_entries(child, current_category)
+
+
+@login_required
+def export_opml_view(request):
+    feeds = Feed.objects.all().order_by("category", "display_order", "id")
+    xml_bytes = _build_opml_document(feeds)
+    response = HttpResponse(xml_bytes, content_type="application/xml")
+    response["Content-Disposition"] = 'attachment; filename="feedee.opml"'
+    return response
+
+
+@login_required
+def import_opml_view(request):
+    if request.method != "POST":
+        return redirect("settings-feeds")
+
+    upload = request.FILES.get("opml_file")
+    if not upload:
+        messages.error(request, "Please choose an OPML file to import.")
+        return redirect("settings-feeds")
+
+    try:
+        root = ET.fromstring(upload.read())
+    except ET.ParseError:
+        messages.error(request, "The uploaded OPML file could not be parsed.")
+        return redirect("settings-feeds")
+
+    existing_urls = {
+        normalize_url(url): url for url in Feed.objects.values_list("url", flat=True)
+    }
+    imported = 0
+    skipped = 0
+    next_order = (
+        Feed.objects.order_by("-display_order").first().display_order
+        if Feed.objects.exists()
+        else 0
+    )
+
+    for outline in root.findall("./body/outline"):
+        for entry in _iter_opml_feed_entries(outline):
+            normalized = normalize_url(entry["url"])
+            if normalized in existing_urls:
+                skipped += 1
+                continue
+
+            next_order += 1
+            Feed.objects.create(
+                name=entry["name"] or urlparse(entry["url"]).netloc,
+                url=entry["url"],
+                category=(entry["category"] or "").strip(),
+                display_order=next_order,
+            )
+            existing_urls[normalized] = entry["url"]
+            imported += 1
+
+    messages.success(
+        request,
+        f"Imported {imported} feed{'s' if imported != 1 else ''}. Skipped {skipped} duplicate{'s' if skipped != 1 else ''}.",
+    )
+    if imported:
+        run_rss_worker()
+    return redirect("settings-feeds")
+
+
 def register_view(request):
     if request.user.is_authenticated:
         return redirect("rss-dashboard")
@@ -274,12 +477,16 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
     """
     # Load user preferences
     items_per_page = 20
+    profile_sort = "published_desc"
     if request.user.is_authenticated:
         profile = getattr(request.user, "profile", None)
         if profile:
             items_per_page = profile.items_per_page
-            if profile.default_sort == "published_asc":
-                base_qs = base_qs.order_by("published_at", "created_at")
+            profile_sort = profile.default_sort
+
+    sort_mode = request.GET.get("sort", "").strip()
+    if sort_mode not in {"latest", "oldest", "smart"}:
+        sort_mode = "oldest" if profile_sort == "published_asc" else "latest"
 
     query = request.GET.get("q", "").strip()
     state_filter = request.GET.get("state", "all").strip()
@@ -288,7 +495,11 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
 
     articles_qs = base_qs
     if query:
-        articles_qs = articles_qs.filter(title__icontains=query)
+        articles_qs = articles_qs.filter(
+            Q(title__icontains=query)
+            | Q(summary__icontains=query)
+            | Q(content__icontains=query)
+        )
 
     all_count = base_qs.count()
     favorites_count = 0
@@ -326,6 +537,43 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
         )
     elif state_filter in {"favorites", "read-later"}:
         articles_qs = articles_qs.none()
+
+    if sort_mode == "smart" and request.user.is_authenticated:
+        state_base = ArticleUserState.objects.filter(
+            user=request.user, article=OuterRef("pk")
+        )
+        articles_qs = (
+            articles_qs.annotate(
+                state_is_read=Exists(state_base.filter(is_read=True)),
+                state_is_favorite=Exists(state_base.filter(is_favorite=True)),
+                state_is_read_later=Exists(state_base.filter(is_read_later=True)),
+            )
+            .annotate(
+                smart_bucket=Case(
+                    When(state_is_read=False, state_is_favorite=True, then=Value(0)),
+                    When(
+                        state_is_read=False,
+                        state_is_read_later=True,
+                        then=Value(1),
+                    ),
+                    When(state_is_read=False, then=Value(2)),
+                    When(state_is_favorite=True, then=Value(3)),
+                    default=Value(4),
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by(
+                "smart_bucket",
+                "-state_is_favorite",
+                "-state_is_read_later",
+                "-published_at",
+                "-created_at",
+            )
+        )
+    elif sort_mode == "oldest":
+        articles_qs = articles_qs.order_by("published_at", "created_at")
+    else:
+        articles_qs = articles_qs.order_by("-published_at", "-created_at")
 
     paginator = Paginator(articles_qs, items_per_page)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -370,6 +618,12 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
         "article_count": paginator.count,
         "query": query,
         "state_filter": state_filter,
+        "sort_mode": sort_mode,
+        "sort_links": [
+            {"key": "latest", "label": "Latest"},
+            {"key": "oldest", "label": "Oldest"},
+            {"key": "smart", "label": "Smart"},
+        ],
         "state_filter_links": [
             {"key": "all", "label": "All", "count": all_count},
             {"key": "unread", "label": "Unread", "count": unread_count},
@@ -440,13 +694,23 @@ def settings_view(request, tab="feeds"):
                     new_feed.display_order = (max_order or 0) + 1
                     new_feed.save()
                     run_rss_worker()
-                    messages.success(
-                        request,
-                        "Feed added. Articles are being fetched in the background — they'll appear shortly.",
-                    )
+                    if getattr(form, "discovery_used", False):
+                        messages.success(
+                            request,
+                            f"Feed added from the discovered RSS URL: {new_feed.url}",
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            "Feed added. Articles are being fetched in the background — they'll appear shortly.",
+                        )
                     return redirect("settings-feeds")
                 except IntegrityError:
                     messages.error(request, "This feed URL is already subscribed.")
+            else:
+                for field_errors in form.errors.values():
+                    for error in field_errors:
+                        messages.error(request, error)
         else:
             form = FeedCreateForm()
 

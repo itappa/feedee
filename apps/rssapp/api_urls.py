@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     ArticleIngestView,
     ArticleUserStateView,
+    FeedFetchStatusView,
     FeedListView,
     FeedReorderView,
     FetchMetadataView,
@@ -10,6 +11,11 @@ from .views import (
 
 urlpatterns = [
     path("feeds/", FeedListView.as_view(), name="feed-list"),
+    path(
+        "feeds/<int:feed_id>/fetch-status/",
+        FeedFetchStatusView.as_view(),
+        name="feed-fetch-status",
+    ),
     path("feeds/reorder/", FeedReorderView.as_view(), name="feed-reorder"),
     path("articles/ingest/", ArticleIngestView.as_view(), name="article-ingest"),
     path(

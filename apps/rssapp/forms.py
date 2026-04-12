@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import (
@@ -7,6 +9,7 @@ from django.contrib.auth.forms import (
 )
 
 from .models import Bookmark, Feed, Tag, UserProfile
+from .utils import discover_feed_url
 
 User = get_user_model()
 
@@ -18,6 +21,42 @@ _INPUT_CLASS = (
 
 
 class FeedCreateForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["name"].required = False
+        self.fields["name"].widget.attrs["placeholder"] = "Feed name (optional)"
+        self.fields["url"].widget.attrs["placeholder"] = (
+            "https://example.com or https://example.com/feed.xml"
+        )
+        self.discovered_feed_url = ""
+        self.discovered_title = ""
+        self.discovery_used = False
+
+    def clean_url(self):
+        raw_url = (self.cleaned_data.get("url") or "").strip()
+        discovered = discover_feed_url(raw_url)
+        feed_url = (discovered.get("feed_url") or "").strip()
+        self.discovered_feed_url = feed_url
+        self.discovered_title = (discovered.get("title") or "").strip()
+        self.discovery_used = bool(feed_url and feed_url != raw_url)
+
+        if not feed_url:
+            raise forms.ValidationError(
+                "Could not find an RSS or Atom feed at that URL."
+            )
+        return feed_url
+
+    def clean(self):
+        cleaned = super().clean()
+        name = (cleaned.get("name") or "").strip()
+        if not name:
+            fallback_name = self.discovered_title or urlsplit(
+                self.discovered_feed_url or cleaned.get("url") or ""
+            ).netloc
+            if fallback_name:
+                cleaned["name"] = fallback_name
+        return cleaned
+
     class Meta:
         model = Feed
         fields = ["name", "url", "category"]

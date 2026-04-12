@@ -9,13 +9,13 @@ from .views import (
     bookmark_from_article_view,
     bookmark_list_view,
     dashboard_view,
-    feed_settings_view,
+    export_opml_view,
+    feed_articles_view,
     feed_update_view,
+    import_opml_view,
     mark_all_read_view,
     reader_view,
-    feed_articles_view,
     settings_view,
-    tag_list_view,
     tag_update_view,
 )
 
@@ -42,6 +42,8 @@ urlpatterns = [
         name="tag-list",
     ),
     # Feeds
+    path("feeds/opml/export/", export_opml_view, name="feeds-opml-export"),
+    path("feeds/opml/import/", import_opml_view, name="feeds-opml-import"),
     path("feeds/<int:feed_id>/", feed_articles_view, name="feed-articles"),
     path("feeds/<int:feed_id>/update/", feed_update_view, name="feed-update"),
     # Articles

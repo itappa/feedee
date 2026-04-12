@@ -2,6 +2,7 @@ import hashlib
 import ipaddress
 import logging
 import socket
+import xml.etree.ElementTree as ET
 from typing import Optional
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -63,30 +64,159 @@ def _is_private_ip(hostname: str) -> bool:
     return False
 
 
-def _fetch_html_response(url: str, *, timeout: int = 8) -> Optional[requests.Response]:
-    """Fetch an external HTML document while preserving the existing SSRF guardrails."""
+def _fetch_external_response(
+    url: str,
+    *,
+    timeout: int = 8,
+    accept: str = "text/html,application/xhtml+xml",
+    allow_non_html: bool = False,
+    method: str = "GET",
+) -> Optional[requests.Response]:
+    """Fetch an external URL while preserving the existing SSRF guardrails."""
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https"):
         return None
     if _is_private_ip(parts.hostname or ""):
         return None
 
-    resp = requests.get(
-        url,
-        timeout=timeout,
-        headers={
-            "User-Agent": "Feedee/1.0 (+full-text extraction)",
-            "Accept": "text/html,application/xhtml+xml",
-        },
-        allow_redirects=True,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.request(
+            method.upper(),
+            url,
+            timeout=timeout,
+            headers={
+                "User-Agent": "Feedee/1.0 (+feed discovery)",
+                "Accept": accept,
+            },
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
+    except Exception:
+        logger.debug("Failed to fetch %s via %s", url, method, exc_info=True)
+        return None
 
     content_type = resp.headers.get("content-type", "")
-    if "html" not in content_type.lower():
+    if not allow_non_html and "html" not in content_type.lower():
         return None
 
     return resp
+
+
+def _fetch_html_response(url: str, *, timeout: int = 8) -> Optional[requests.Response]:
+    return _fetch_external_response(url, timeout=timeout)
+
+
+def _looks_like_feed_response(response: requests.Response) -> bool:
+    content_type = (response.headers.get("content-type") or "").lower()
+    if any(
+        token in content_type
+        for token in (
+            "application/rss+xml",
+            "application/atom+xml",
+            "application/xml",
+            "text/xml",
+            "application/rdf+xml",
+        )
+    ):
+        return True
+
+    sample = (response.text or "")[:1000].lower()
+    return "<rss" in sample or "<feed" in sample or "<rdf:rdf" in sample
+
+
+def _extract_feed_title(xml_text: str) -> str:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return ""
+
+    for elem in root.iter():
+        if elem.tag.endswith("title") and (elem.text or "").strip():
+            return elem.text.strip()
+    return ""
+
+
+def discover_feed_url(url: str) -> dict:
+    """Resolve a homepage or feed URL to a concrete RSS/Atom feed URL."""
+    cleaned_url = (url or "").strip()
+    if not cleaned_url:
+        return {"feed_url": "", "title": "", "discovered": False}
+
+    response = _fetch_external_response(
+        cleaned_url,
+        accept="application/rss+xml, application/atom+xml, application/xml, text/xml, text/html, application/xhtml+xml",
+        allow_non_html=True,
+    )
+    if response is None:
+        return {"feed_url": "", "title": "", "discovered": False}
+
+    if _looks_like_feed_response(response):
+        return {
+            "feed_url": response.url,
+            "title": _extract_feed_title(response.text)
+            or urlsplit(response.url).netloc,
+            "discovered": response.url != cleaned_url,
+        }
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    page_title = (
+        soup.title.string.strip()
+        if soup.title and soup.title.string
+        else urlsplit(cleaned_url).netloc
+    )
+
+    candidates = []
+    for link in soup.find_all("link"):
+        rel = link.get("rel") or []
+        rel_values = (
+            [str(item).lower() for item in rel]
+            if isinstance(rel, list)
+            else [str(rel).lower()]
+        )
+        link_type = (link.get("type") or "").lower()
+        href = (link.get("href") or "").strip()
+        if not href:
+            continue
+        if "alternate" in rel_values and (
+            "rss" in link_type or "atom" in link_type or href.endswith(".xml")
+        ):
+            candidates.append(urljoin(response.url, href))
+
+    base = f"{urlsplit(response.url).scheme}://{urlsplit(response.url).netloc}"
+    for path in ("/feed", "/feed.xml", "/rss", "/rss.xml", "/atom.xml", "/index.xml"):
+        candidates.append(urljoin(base, path))
+
+    for candidate in dict.fromkeys(candidates):
+        head_response = _fetch_external_response(
+            candidate,
+            timeout=5,
+            accept="application/rss+xml, application/atom+xml, application/xml, text/xml",
+            allow_non_html=True,
+            method="HEAD",
+        )
+        if head_response is not None and _looks_like_feed_response(head_response):
+            return {
+                "feed_url": candidate,
+                "title": page_title,
+                "discovered": True,
+            }
+
+        candidate_response = _fetch_external_response(
+            candidate,
+            timeout=5,
+            accept="application/rss+xml, application/atom+xml, application/xml, text/xml, text/html",
+            allow_non_html=True,
+        )
+        if candidate_response is not None and _looks_like_feed_response(
+            candidate_response
+        ):
+            return {
+                "feed_url": candidate_response.url,
+                "title": _extract_feed_title(candidate_response.text) or page_title,
+                "discovered": True,
+            }
+
+    return {"feed_url": "", "title": page_title, "discovered": False}
 
 
 def _extract_content_with_bs4(html: str, url: str) -> str:

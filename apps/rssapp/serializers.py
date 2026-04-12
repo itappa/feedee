@@ -6,7 +6,21 @@ from .models import ArticleUserState, Feed
 class FeedSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feed
-        fields = ["id", "name", "url", "category", "display_order", "is_active"]
+        fields = [
+            "id",
+            "name",
+            "url",
+            "category",
+            "display_order",
+            "is_active",
+            "etag",
+            "last_modified",
+            "next_fetch_at",
+            "fetch_interval_minutes",
+            "last_fetched_at",
+            "last_success_at",
+            "consecutive_failures",
+        ]
 
 
 class FeedReorderSerializer(serializers.Serializer):
@@ -43,6 +57,17 @@ class ArticleUserStateSerializer(serializers.ModelSerializer):
         model = ArticleUserState
         fields = ["article", "is_favorite", "is_read_later", "is_read", "updated_at"]
         read_only_fields = ["article", "updated_at"]
+
+
+class FeedFetchStatusSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["success", "not_modified", "error"])
+    http_status = serializers.IntegerField(required=False, min_value=100, max_value=599)
+    error = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    etag = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    last_modified = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+    item_count = serializers.IntegerField(required=False, min_value=0, default=0)
 
 
 class FetchMetadataSerializer(serializers.Serializer):

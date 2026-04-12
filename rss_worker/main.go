@@ -22,6 +22,7 @@ import (
 const (
 	defaultDjangoBaseURL     = "http://127.0.0.1:8000"
 	feedsEndpoint            = "/api/feeds/"
+	feedStatusEndpointFmt    = "/api/feeds/%d/fetch-status/"
 	ingestEndpoint           = "/api/articles/ingest/"
 	defaultHTTPTimeoutSec    = 15
 	defaultMaxConcurrency    = 8
@@ -39,9 +40,12 @@ type workerConfig struct {
 }
 
 type Feed struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	URL          string `json:"url"`
+	Category     string `json:"category,omitempty"`
+	ETag         string `json:"etag,omitempty"`
+	LastModified string `json:"last_modified,omitempty"`
 }
 
 type IngestArticle struct {
@@ -100,12 +104,26 @@ type enclosure struct {
 var imgSrcRe = regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
 
 type feedFetchResult struct {
-	FeedName  string
-	FeedURL   string
-	Articles  []IngestArticle
-	Err       error
-	HTTPCode  int
-	FetchedAt time.Time
+	FeedID       int
+	FeedName     string
+	FeedURL      string
+	Articles     []IngestArticle
+	Err          error
+	HTTPCode     int
+	FetchedAt    time.Time
+	NotModified  bool
+	ETag         string
+	LastModified string
+	ItemCount    int
+}
+
+type feedStatusPayload struct {
+	Status       string `json:"status"`
+	HTTPStatus   int    `json:"http_status,omitempty"`
+	Error        string `json:"error,omitempty"`
+	ETag         string `json:"etag,omitempty"`
+	LastModified string `json:"last_modified,omitempty"`
+	ItemCount    int    `json:"item_count,omitempty"`
 }
 
 func main() {
@@ -126,6 +144,7 @@ func main() {
 	}
 
 	results := fetchAllRSS(client, feeds, cfg.MaxConcurrency)
+	reportFeedFetchResults(client, cfg, results)
 	batchArticles := collectBatchArticles(results)
 
 	if len(batchArticles) == 0 {
@@ -248,6 +267,10 @@ func fetchAllRSS(client *http.Client, feeds []Feed, maxConcurrency int) []feedFe
 			log.Printf("feed fetch error [%s]: %v", result.FeedURL, result.Err)
 			continue
 		}
+		if result.NotModified {
+			log.Printf("feed not modified [%s]", result.FeedName)
+			continue
+		}
 		log.Printf("feed fetched [%s]: %d items", result.FeedName, len(result.Articles))
 	}
 
@@ -256,6 +279,7 @@ func fetchAllRSS(client *http.Client, feeds []Feed, maxConcurrency int) []feedFe
 
 func fetchSingleFeed(client *http.Client, feed Feed) feedFetchResult {
 	result := feedFetchResult{
+		FeedID:    feed.ID,
 		FeedName:  feed.Name,
 		FeedURL:   feed.URL,
 		FetchedAt: time.Now().UTC(),
@@ -266,6 +290,13 @@ func fetchSingleFeed(client *http.Client, feed Feed) feedFetchResult {
 		result.Err = fmt.Errorf("build request: %w", err)
 		return result
 	}
+	req.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml")
+	if strings.TrimSpace(feed.ETag) != "" {
+		req.Header.Set("If-None-Match", feed.ETag)
+	}
+	if strings.TrimSpace(feed.LastModified) != "" {
+		req.Header.Set("If-Modified-Since", feed.LastModified)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -275,6 +306,18 @@ func fetchSingleFeed(client *http.Client, feed Feed) feedFetchResult {
 	defer resp.Body.Close()
 
 	result.HTTPCode = resp.StatusCode
+	result.ETag = strings.TrimSpace(resp.Header.Get("ETag"))
+	if result.ETag == "" {
+		result.ETag = strings.TrimSpace(feed.ETag)
+	}
+	result.LastModified = strings.TrimSpace(resp.Header.Get("Last-Modified"))
+	if result.LastModified == "" {
+		result.LastModified = strings.TrimSpace(feed.LastModified)
+	}
+	if resp.StatusCode == http.StatusNotModified {
+		result.NotModified = true
+		return result
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		result.Err = fmt.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
@@ -294,7 +337,63 @@ func fetchSingleFeed(client *http.Client, feed Feed) feedFetchResult {
 	}
 
 	result.Articles = articles
+	result.ItemCount = len(articles)
 	return result
+}
+
+func reportFeedFetchResults(client *http.Client, cfg workerConfig, results []feedFetchResult) {
+	for _, result := range results {
+		if result.FeedID == 0 {
+			continue
+		}
+		if err := postFeedFetchStatus(client, cfg, result); err != nil {
+			log.Printf("failed to report fetch status for %s: %v", result.FeedName, err)
+		}
+	}
+}
+
+func postFeedFetchStatus(client *http.Client, cfg workerConfig, result feedFetchResult) error {
+	payload := feedStatusPayload{
+		Status:       "success",
+		HTTPStatus:   result.HTTPCode,
+		ETag:         result.ETag,
+		LastModified: result.LastModified,
+		ItemCount:    result.ItemCount,
+	}
+	if result.NotModified {
+		payload.Status = "not_modified"
+	}
+	if result.Err != nil {
+		payload.Status = "error"
+		payload.Error = result.Err.Error()
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal status payload: %w", err)
+	}
+
+	url := cfg.DjangoBaseURL + fmt.Sprintf(feedStatusEndpointFmt, result.FeedID)
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build status request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if cfg.APIToken != "" {
+		req.Header.Set("Authorization", "Token "+cfg.APIToken)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("status request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("status endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return nil
 }
 
 func parseRSS(xmlData []byte, feedID int) ([]IngestArticle, error) {

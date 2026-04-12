@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from django.utils.text import slugify
 import nh3
 
@@ -10,6 +11,14 @@ class Feed(models.Model):
     category = models.CharField(max_length=100, blank=True, default="")
     display_order = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True)
+    last_fetched_at = models.DateTimeField(null=True, blank=True)
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True, default="")
+    consecutive_failures = models.PositiveIntegerField(default=0)
+    etag = models.CharField(max_length=255, blank=True, default="")
+    last_modified = models.CharField(max_length=255, blank=True, default="")
+    next_fetch_at = models.DateTimeField(default=timezone.now, db_index=True)
+    fetch_interval_minutes = models.PositiveIntegerField(default=60)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.url})"

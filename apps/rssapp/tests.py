@@ -1,10 +1,14 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
+from .forms import FeedCreateForm
 from .models import Article, ArticleUserState, Bookmark, Feed, Tag, UserProfile
 
 
@@ -791,3 +795,250 @@ class FeedArticlesViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "0 unread")
+
+
+class FeedDiscoveryAndOpmlTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="discoverer",
+            email="discoverer@example.com",
+            password="password123",
+        )
+        self.client.force_login(self.user)
+
+    @patch("apps.rssapp.forms.discover_feed_url")
+    def test_feed_create_form_accepts_homepage_url_via_discovery(self, mock_discover):
+        mock_discover.return_value = {
+            "feed_url": "https://example.com/feed.xml",
+            "title": "Example Feed",
+        }
+
+        form = FeedCreateForm(
+            data={
+                "name": "",
+                "url": "https://example.com",
+                "category": "Tech",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        feed = form.save()
+        self.assertEqual(feed.url, "https://example.com/feed.xml")
+        self.assertEqual(feed.name, "Example Feed")
+
+    def test_opml_export_includes_feed_categories(self):
+        Feed.objects.create(
+            name="Example Feed",
+            url="https://example.com/feed.xml",
+            category="Tech",
+        )
+
+        response = self.client.get(reverse("feeds-opml-export"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/xml")
+        self.assertContains(response, 'title="Feedee Subscriptions"')
+        self.assertContains(response, 'text="Tech"')
+        self.assertContains(response, 'xmlUrl="https://example.com/feed.xml"')
+
+    def test_opml_import_skips_duplicates_and_preserves_categories(self):
+        Feed.objects.create(
+            name="Existing Feed",
+            url="https://example.com/existing.xml",
+            category="News",
+        )
+        opml = b"""<?xml version='1.0' encoding='UTF-8'?>
+<opml version='1.0'>
+  <body>
+    <outline text='Tech'>
+      <outline text='Example Feed' title='Example Feed' type='rss' xmlUrl='https://example.com/feed.xml' htmlUrl='https://example.com/' />
+    </outline>
+    <outline text='News'>
+      <outline text='Existing Feed' title='Existing Feed' type='rss' xmlUrl='https://example.com/existing.xml' htmlUrl='https://example.com/' />
+    </outline>
+  </body>
+</opml>
+"""
+
+        response = self.client.post(
+            reverse("feeds-opml-import"),
+            data={
+                "opml_file": SimpleUploadedFile(
+                    "feeds.opml", opml, content_type="text/xml"
+                )
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            Feed.objects.filter(
+                url="https://example.com/feed.xml", category="Tech"
+            ).exists()
+        )
+        self.assertEqual(
+            Feed.objects.filter(url="https://example.com/existing.xml").count(), 1
+        )
+        self.assertContains(response, "Imported 1 feed")
+
+
+class FeedFetchHealthTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="worker-health",
+            email="worker-health@example.com",
+            password="password123",
+        )
+        self.token = Token.objects.create(user=self.user)
+        self.auth_header = {"HTTP_AUTHORIZATION": f"Token {self.token.key}"}
+
+    def test_feed_list_api_returns_only_due_feeds_with_health_metadata(self):
+        due_feed = Feed.objects.create(
+            name="Due Feed",
+            url="https://example.com/due.xml",
+            next_fetch_at=timezone.now() - timedelta(minutes=5),
+            etag='"abc"',
+            last_modified="Wed, 21 Oct 2015 07:28:00 GMT",
+        )
+        Feed.objects.create(
+            name="Later Feed",
+            url="https://example.com/later.xml",
+            next_fetch_at=timezone.now() + timedelta(minutes=30),
+        )
+
+        response = self.client.get(reverse("feed-list"), **self.auth_header)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual([item["id"] for item in payload], [due_feed.id])
+        self.assertEqual(payload[0]["etag"], '"abc"')
+        self.assertEqual(payload[0]["last_modified"], "Wed, 21 Oct 2015 07:28:00 GMT")
+
+    def test_feed_fetch_status_api_tracks_backoff_and_success_reset(self):
+        feed = Feed.objects.create(
+            name="Tracked Feed",
+            url="https://example.com/feed.xml",
+            next_fetch_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        error_response = self.client.post(
+            reverse("feed-fetch-status", args=[feed.id]),
+            data={"status": "error", "error": "timeout"},
+            content_type="application/json",
+            **self.auth_header,
+        )
+
+        self.assertEqual(error_response.status_code, 200)
+        feed.refresh_from_db()
+        self.assertEqual(feed.consecutive_failures, 1)
+        self.assertEqual(feed.last_error, "timeout")
+        self.assertGreater(feed.next_fetch_at, timezone.now())
+
+        success_response = self.client.post(
+            reverse("feed-fetch-status", args=[feed.id]),
+            data={
+                "status": "success",
+                "etag": '"fresh"',
+                "last_modified": "Thu, 22 Oct 2015 07:28:00 GMT",
+                "item_count": 4,
+            },
+            content_type="application/json",
+            **self.auth_header,
+        )
+
+        self.assertEqual(success_response.status_code, 200)
+        feed.refresh_from_db()
+        self.assertEqual(feed.consecutive_failures, 0)
+        self.assertEqual(feed.last_error, "")
+        self.assertEqual(feed.etag, '"fresh"')
+        self.assertEqual(feed.last_modified, "Thu, 22 Oct 2015 07:28:00 GMT")
+
+
+class EnhancedSearchAndRankingTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="smart-reader",
+            email="smart-reader@example.com",
+            password="password123",
+        )
+        self.client.force_login(self.user)
+        self.feed = Feed.objects.create(
+            name="Smart Feed",
+            url="https://example.com/smart.xml",
+        )
+
+    def test_dashboard_search_matches_summary_and_content(self):
+        Article.objects.create(
+            feed=self.feed,
+            title="Unrelated title",
+            link="https://example.com/summary-hit",
+            normalized_link="https://example.com/summary-hit",
+            guid="summary-hit",
+            hash="summary-hit",
+            summary="Contains orbital needle in summary",
+        )
+        Article.objects.create(
+            feed=self.feed,
+            title="Another title",
+            link="https://example.com/content-hit",
+            normalized_link="https://example.com/content-hit",
+            guid="content-hit",
+            hash="content-hit",
+            content="<p>Deep content needle appears here.</p>",
+        )
+
+        response = self.client.get(reverse("rss-dashboard"), {"q": "needle"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Unrelated title")
+        self.assertContains(response, "Another title")
+
+    def test_dashboard_sort_smart_prioritizes_unread_then_saved(self):
+        read_article = Article.objects.create(
+            feed=self.feed,
+            title="Read article",
+            link="https://example.com/read",
+            normalized_link="https://example.com/read",
+            guid="read-guid",
+            hash="read-guid",
+            published_at=timezone.now() - timedelta(hours=1),
+        )
+        favorite_unread = Article.objects.create(
+            feed=self.feed,
+            title="Favorite unread",
+            link="https://example.com/favorite-unread",
+            normalized_link="https://example.com/favorite-unread",
+            guid="favorite-unread-guid",
+            hash="favorite-unread-guid",
+            published_at=timezone.now() - timedelta(days=2),
+        )
+        plain_unread = Article.objects.create(
+            feed=self.feed,
+            title="Plain unread",
+            link="https://example.com/plain-unread",
+            normalized_link="https://example.com/plain-unread",
+            guid="plain-unread-guid",
+            hash="plain-unread-guid",
+            published_at=timezone.now() - timedelta(days=1),
+        )
+
+        ArticleUserState.objects.create(
+            user=self.user,
+            article=read_article,
+            is_read=True,
+        )
+        ArticleUserState.objects.create(
+            user=self.user,
+            article=favorite_unread,
+            is_favorite=True,
+            is_read_later=True,
+        )
+
+        response = self.client.get(reverse("rss-dashboard"), {"sort": "smart"})
+
+        self.assertEqual(response.status_code, 200)
+        article_ids = [card["id"] for card in response.context["article_cards"]]
+        self.assertEqual(article_ids[0], favorite_unread.id)
+        self.assertLess(
+            article_ids.index(plain_unread.id), article_ids.index(read_article.id)
+        )

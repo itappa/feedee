@@ -46,18 +46,25 @@
     {# ══════════════════════════════════════════════════ #}
     {% if active_tab == "feeds" %}
 
-    <p class="text-sm text-gray-500 mb-4">{{ feeds|length }} feed{{ feeds|length|pluralize }}</p>
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-gray-500">{{ feeds|length }} feed{{ feeds|length|pluralize }}</p>
+        <a href="{% url 'feeds-opml-export' %}"
+           class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+            Export OPML
+        </a>
+    </div>
 
     {# ── Add Feed ── #}
-    <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-5 mb-6">
+    <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-5 mb-6 space-y-4">
         <form method="post" class="flex flex-wrap items-end gap-3">
             {% csrf_token %}
+            <input type="hidden" name="form_action" value="add_feed">
             <div class="flex-1 min-w-[160px]">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Name</label>
                 {{ feed_form.name }}
             </div>
             <div class="flex-[2] min-w-[200px]">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Feed URL</label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Website or feed URL</label>
                 {{ feed_form.url }}
             </div>
             <div class="min-w-[120px]">
@@ -69,6 +76,21 @@
                 Add feed
             </button>
         </form>
+
+        <div class="border-t border-gray-100 pt-4">
+            <p class="text-xs text-gray-500 mb-3">You can paste either a homepage URL or a direct RSS/Atom URL. Feedee will try to discover the feed automatically.</p>
+            <form method="post" action="{% url 'feeds-opml-import' %}" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
+                {% csrf_token %}
+                <div class="flex-1 min-w-[220px]">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Import from OPML</label>
+                    <input type="file" name="opml_file" accept=".opml,.xml,text/xml,application/xml"
+                           class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-2 file:py-1 file:text-brand-700">
+                </div>
+                <button class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+                    Import OPML
+                </button>
+            </form>
+        </div>
     </section>
 
     {# ── Feed List ── #}
