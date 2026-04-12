@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ArticleUserState, Feed
+from .models import ArticleUserState, Bookmark, BookmarkCategory, Feed
 
 
 class FeedSerializer(serializers.ModelSerializer):
@@ -72,3 +72,14 @@ class FeedFetchStatusSerializer(serializers.Serializer):
 
 class FetchMetadataSerializer(serializers.Serializer):
     url = serializers.URLField(max_length=2048)
+
+
+class BookmarkCategorySerializer(serializers.ModelSerializer):
+    bookmark_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookmarkCategory
+        fields = ["id", "name", "description", "color", "display_order", "bookmark_count"]
+
+    def get_bookmark_count(self, obj):
+        return obj.bookmarks.count()

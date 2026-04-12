@@ -40,6 +40,12 @@
                     {{ form.description }}
                 </div>
 
+                {# ── Category ── #}
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                    {{ form.category }}
+                </div>
+
                 {# ── Thumbnail preview ── #}
                 <div id="thumbnail-preview" class="{% if not edit_mode or not bookmark.thumbnail_url %}hidden{% endif %}">
                     <label class="block text-xs font-medium text-gray-500 mb-1">Thumbnail</label>

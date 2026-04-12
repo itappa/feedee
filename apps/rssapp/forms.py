@@ -8,7 +8,7 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 
-from .models import Bookmark, Feed, Tag, UserProfile
+from .models import Bookmark, BookmarkCategory, Feed, Tag, UserProfile
 from .utils import discover_feed_url
 
 User = get_user_model()
@@ -124,7 +124,7 @@ class BookmarkForm(forms.ModelForm):
 
     class Meta:
         model = Bookmark
-        fields = ["url", "title", "description"]
+        fields = ["url", "title", "description", "category"]
         widgets = {
             "url": forms.URLInput(
                 attrs={
@@ -146,6 +146,36 @@ class BookmarkForm(forms.ModelForm):
                     "placeholder": "Description (optional)",
                     "rows": 3,
                     "id": "bookmark-description",
+                }
+            ),
+            "category": forms.Select(
+                attrs={
+                    "class": _INPUT_CLASS,
+                    "id": "bookmark-category",
+                }
+            ),
+        }
+
+
+class BookmarkCategoryForm(forms.ModelForm):
+    class Meta:
+        model = BookmarkCategory
+        fields = ["name", "description", "color"]
+        widgets = {
+            "name": forms.TextInput(
+                attrs={"class": _INPUT_CLASS, "placeholder": "Category name"}
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "class": _INPUT_CLASS,
+                    "placeholder": "Description (optional)",
+                    "rows": 2,
+                }
+            ),
+            "color": forms.TextInput(
+                attrs={
+                    "class": "h-9 w-14 rounded-lg border border-gray-200 cursor-pointer",
+                    "type": "color",
                 }
             ),
         }

@@ -67,12 +67,42 @@
                    class="w-full pl-9 pr-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm placeholder-gray-400 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none transition-colors">
         </div>
     </form>
+
+    {# ── Page Navigation (Desktop) ────────────────── #}
+    <div class="hidden lg:flex items-center gap-0.5 px-2">
+        <a href="{% url 'rss-dashboard' %}"
+           class="px-3 py-1.5 rounded text-xs font-medium transition-colors
+                  {% if current_page == 'dashboard' %}bg-brand-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            Dashboard
+        </a>
+        <a href="{% url 'feeds-page' %}"
+           class="px-3 py-1.5 rounded text-xs font-medium transition-colors
+                  {% if current_page == 'feeds' %}bg-brand-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            Feeds
+        </a>
+        <a href="{% url 'bookmarks-page' %}"
+           class="px-3 py-1.5 rounded text-xs font-medium transition-colors
+                  {% if current_page == 'bookmarks' %}bg-brand-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            Bookmarks
+        </a>
+        <a href="{% url 'read-later' %}"
+           class="px-3 py-1.5 rounded text-xs font-medium transition-colors
+                  {% if current_page == 'read_later' %}bg-brand-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            Read Later
+        </a>
+        <a href="{% url 'favorites' %}"
+           class="px-3 py-1.5 rounded text-xs font-medium transition-colors
+                  {% if current_page == 'favorites' %}bg-brand-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+            Favorites
+        </a>
+    </div>
+
     {# Mobile search toggle #}
     <button id="mobile-search-toggle" class="sm:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-600" aria-label="Search">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 21l-5.2-5.2M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
     </button>
 
-    <div class="flex-1 hidden sm:block"></div>
+    <div class="flex-1 hidden lg:block"></div>
 
     <div class="flex items-center gap-2 flex-shrink-0 text-sm">
         {% if request.user.is_authenticated %}
@@ -127,22 +157,26 @@
 
 {# ── Sidebar ────────────────────────────────────────── #}
 <aside id="sidebar-panel" class="fixed top-14 bottom-0 left-0 z-40 w-64 bg-white border-r border-gray-200 flex flex-col md:translate-x-0">
-    <nav class="px-3 pt-4 pb-2 space-y-0.5">
-        <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">RSS</p>
+
+    {# ===== FEEDS SIDEBAR (Dashboard / Feeds / Feed articles) ===== #}
+    {% if current_page == 'dashboard' or current_page == 'feeds' or current_page == 'feed-articles' %}
+
+    <nav class="px-3 pt-4 pb-2 space-y-0.5 flex-shrink-0">
+        <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Articles</p>
         <a href="{% url 'rss-dashboard' %}"
            class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'dashboard' and state_filter == 'all' %}active{% endif %}">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
             All articles
-            <span class="ml-auto text-[11px] font-medium text-brand-700 bg-brand-50 rounded-full px-2 py-0.5" title="{{ sidebar_total_unread }} unread articles">{{ sidebar_total_unread }} unread</span>
+            <span class="ml-auto text-[11px] font-medium text-brand-700 bg-brand-50 rounded-full px-2 py-0.5">{{ sidebar_total_unread }} unread</span>
         </a>
-        <a href="{% url 'rss-dashboard' %}?state=read-later"
-           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if state_filter == 'read-later' %}active{% endif %}">
+        <a href="{% url 'read-later' %}"
+           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'read_later' %}active{% endif %}">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
             Read later
             {% if sidebar_total_read_later %}<span class="ml-auto text-xs font-medium text-sky-600 bg-sky-50 rounded-full px-2 py-0.5">{{ sidebar_total_read_later }}</span>{% endif %}
         </a>
-        <a href="{% url 'rss-dashboard' %}?state=favorites"
-           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if state_filter == 'favorites' %}active{% endif %}">
+        <a href="{% url 'favorites' %}"
+           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'favorites' %}active{% endif %}">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M11.05 3.612c.35-.86 1.55-.86 1.9 0l2.07 5.07 5.45.46c.94.08 1.32 1.24.6 1.86l-4.13 3.56 1.26 5.32c.22.92-.78 1.64-1.6 1.16L12 18.26l-4.53 2.76c-.82.48-1.82-.24-1.6-1.16l1.26-5.32-4.13-3.56c-.72-.62-.34-1.78.6-1.86l5.45-.46 2.07-5.07z"/></svg>
             Favorites
             {% if sidebar_total_favorites %}<span class="ml-auto text-xs font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">{{ sidebar_total_favorites }}</span>{% endif %}
@@ -150,7 +184,6 @@
     </nav>
     <div class="border-t border-gray-100 mx-3"></div>
 
-    {# ── Feeds Section ──────────────────────────────── #}
     <div class="flex-1 overflow-y-auto px-3 pt-3 pb-2">
         <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Feeds</p>
         {% for group in sidebar_groups %}
@@ -173,35 +206,80 @@
                 </div>
             </div>
         {% empty %}
-            <p class="px-3 text-sm text-gray-400">No feeds yet</p>
+            <p class="px-3 text-sm text-gray-400">No feeds yet. <a href="{% url 'settings-feeds' %}" class="underline">Add one</a></p>
         {% endfor %}
     </div>
-    <div class="border-t border-gray-100 mx-3"></div>
+
+    {# ===== BOOKMARKS SIDEBAR ===== #}
+    {% elif current_page == 'bookmarks' %}
 
     {% if request.user.is_authenticated %}
-    {# ── Bookmarks Section ──────────────────────────── #}
-    <nav class="px-3 pt-3 pb-2">
-        <a href="{% url 'bookmark-list' %}"
-           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'bookmarks' and not tag_slug %}active{% endif %}">
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-            Bookmarks
+    <div class="flex-1 overflow-y-auto px-3 pt-4 pb-2">
+        <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Categories</p>
+        <a href="{% url 'bookmarks-page' %}"
+           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if not selected_category_id %}active{% endif %}">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+            All Bookmarks
             {% if sidebar_total_bookmarks %}<span class="ml-auto text-xs font-medium text-violet-600 bg-violet-50 rounded-full px-2 py-0.5">{{ sidebar_total_bookmarks }}</span>{% endif %}
         </a>
+        {% for cat in sidebar_bookmark_categories %}
+        <a href="{% url 'bookmarks-page' %}?category={{ cat.id }}"
+           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if selected_category_id == cat.id|stringformat:'s' %}active{% endif %}">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ cat.color|default:'#9ca3af' }}"></span>
+            <span class="truncate">{{ cat.name }}</span>
+            {% if cat.bookmark_count %}<span class="ml-auto text-[11px] tabular-nums text-gray-400">{{ cat.bookmark_count }}</span>{% endif %}
+        </a>
+        {% endfor %}
+
         {% if sidebar_tags %}
-        <div class="flex flex-wrap gap-1.5 px-3 mt-2">
-            {% for tag in sidebar_tags %}
-                <a href="{% url 'bookmark-list' %}?tag={{ tag.slug }}"
+        <div class="border-t border-gray-100 mt-3 pt-3">
+            <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Tags</p>
+            <div class="flex flex-wrap gap-1.5 px-3">
+                {% for tag in sidebar_tags %}
+                <a href="{% url 'bookmarks-page' %}?tag={{ tag.slug }}"
                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors
-                          {% if current_page == 'bookmarks' and tag_slug == tag.slug %}text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}"
-                   {% if current_page == 'bookmarks' and tag_slug == tag.slug %}style="background-color: {{ tag.color }}"{% endif %}>
-                    <span class="w-2 h-2 rounded-full flex-shrink-0 {% if current_page == 'bookmarks' and tag_slug == tag.slug %}bg-white/50{% endif %}" {% if current_page != 'bookmarks' or tag_slug != tag.slug %}style="background-color: {{ tag.color }}"{% endif %}></span>
+                          {% if tag_slug == tag.slug %}text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}"
+                   {% if tag_slug == tag.slug %}style="background-color: {{ tag.color }}"{% endif %}>
+                    <span class="w-2 h-2 rounded-full flex-shrink-0 {% if tag_slug == tag.slug %}bg-white/50{% endif %}"
+                          {% if tag_slug != tag.slug %}style="background-color: {{ tag.color }}"{% endif %}></span>
                     {{ tag.name }}
                 </a>
-            {% endfor %}
+                {% endfor %}
+            </div>
         </div>
         {% endif %}
-    </nav>
-    <div class="border-t border-gray-100 px-3 py-3 space-y-0.5">
+    </div>
+    {% endif %}
+
+    {# ===== READ LATER / FAVORITES SIDEBAR ===== #}
+    {% else %}
+
+    <div class="flex-1 px-3 pt-4">
+        <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Navigation</p>
+        <a href="{% url 'rss-dashboard' %}"
+           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+            All articles
+        </a>
+        <a href="{% url 'read-later' %}"
+           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'read_later' %}active{% endif %}">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+            Read later
+            {% if sidebar_total_read_later %}<span class="ml-auto text-xs font-medium text-sky-600 bg-sky-50 rounded-full px-2 py-0.5">{{ sidebar_total_read_later }}</span>{% endif %}
+        </a>
+        <a href="{% url 'favorites' %}"
+           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'favorites' %}active{% endif %}">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M11.05 3.612c.35-.86 1.55-.86 1.9 0l2.07 5.07 5.45.46c.94.08 1.32 1.24.6 1.86l-4.13 3.56 1.26 5.32c.22.92-.78 1.64-1.6 1.16L12 18.26l-4.53 2.76c-.82.48-1.82-.24-1.6-1.16l1.26-5.32-4.13-3.56c-.72-.62-.34-1.78.6-1.86l5.45-.46 2.07-5.07z"/></svg>
+            Favorites
+            {% if sidebar_total_favorites %}<span class="ml-auto text-xs font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">{{ sidebar_total_favorites }}</span>{% endif %}
+        </a>
+    </div>
+
+    {% endif %}
+
+    {# ── Settings link (always shown at bottom) ────── #}
+    {% if request.user.is_authenticated %}
+    <div class="border-t border-gray-100 px-3 py-3 flex-shrink-0">
         <a href="{% url 'settings-feeds' %}"
            class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 {% if current_page == 'settings' %}active{% endif %}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z"/><circle cx="12" cy="12" r="3"/></svg>

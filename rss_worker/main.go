@@ -133,30 +133,53 @@ func main() {
 	cfg := loadConfig()
 	client := &http.Client{Timeout: cfg.HTTPTimeout}
 
+	// Start as daemon: run continuously with a default check interval
+	// Use environment variable to control the interval (in seconds), default to 3600 (1 hour)
+	checkIntervalSec := intFromEnv("WORKER_CHECK_INTERVAL_SECONDS", 3600)
+	if checkIntervalSec < 60 {
+		checkIntervalSec = 60 // Minimum 1 minute
+	}
+	checkInterval := time.Duration(checkIntervalSec) * time.Second
+
+	log.Printf("RSS Worker started. Check interval: %v", checkInterval)
+	log.Printf("Django URL: %s", cfg.DjangoBaseURL)
+
+	// Run continuously
+	for {
+		runWorkerIteration(client, cfg)
+		log.Printf("Next check in %v seconds", checkIntervalSec)
+		time.Sleep(checkInterval)
+	}
+}
+
+func runWorkerIteration(client *http.Client, cfg workerConfig) {
 	feeds, err := fetchFeeds(client, cfg)
 	if err != nil {
-		log.Fatalf("failed to fetch feeds: %v", err)
-	}
-
-	if len(feeds) == 0 {
-		log.Println("no feeds configured")
+		log.Printf("ERROR: failed to fetch feeds: %v", err)
 		return
 	}
 
+	if len(feeds) == 0 {
+		log.Println("INFO: no feeds configured")
+		return
+	}
+
+	log.Printf("INFO: fetching %d feeds", len(feeds))
 	results := fetchAllRSS(client, feeds, cfg.MaxConcurrency)
 	reportFeedFetchResults(client, cfg, results)
 	batchArticles := collectBatchArticles(results)
 
 	if len(batchArticles) == 0 {
-		log.Println("no new articles to ingest from this run")
+		log.Println("INFO: no new articles to ingest from this run")
 		return
 	}
 
 	if err := postIngestWithRetry(client, cfg, batchArticles); err != nil {
-		log.Fatalf("ingest failed: %v", err)
+		log.Printf("ERROR: ingest failed: %v", err)
+		return
 	}
 
-	log.Printf("worker finished: sent %d deduplicated articles", len(batchArticles))
+	log.Printf("SUCCESS: sent %d deduplicated articles", len(batchArticles))
 }
 
 func loadConfig() workerConfig {

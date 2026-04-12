@@ -213,6 +213,32 @@ class Tag(models.Model):
         return self.name
 
 
+class BookmarkCategory(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bookmark_categories",
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, default="")
+    color = models.CharField(max_length=7, default="#3B82F6")
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "name"], name="uniq_user_bookmark_category_name"
+            ),
+        ]
+        ordering = ["display_order", "name"]
+        verbose_name_plural = "Bookmark Categories"
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Bookmark(models.Model):
     url = models.URLField(max_length=2048)
     title = models.CharField(max_length=500)
@@ -225,6 +251,13 @@ class Bookmark(models.Model):
     )
     source_article = models.ForeignKey(
         Article,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bookmarks",
+    )
+    category = models.ForeignKey(
+        BookmarkCategory,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

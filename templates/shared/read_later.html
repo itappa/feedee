@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Read Later – Feedee{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 md:px-8 py-6">
+    {# ── Page header ───────────────────────────────── #}
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Read Later</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ count }} article{{ count|pluralize }} saved for reading</p>
+        </div>
+    </div>
+
+    {# ── Articles list ─────────────────────────────── #}
+    {% if article_cards %}
+    <div class="space-y-3">
+        {% for article in article_cards %}
+        <div class="group rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden hover:border-gray-300 hover:shadow-md transition-all p-4">
+            <div class="flex gap-4">
+                {% if article.image_url %}
+                <a href="{% url 'article-reader' article.id %}" class="flex-shrink-0 w-24 h-24 rounded-lg bg-gray-100 overflow-hidden">
+                    <img src="{{ article.image_url }}" alt="" class="w-full h-full object-cover" loading="lazy">
+                </a>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <a href="{% url 'article-reader' article.id %}" class="block">
+                        <h3 class="text-sm font-medium text-gray-900 group-hover:text-brand-700 line-clamp-2 transition-colors">
+                            {{ article.title }}
+                        </h3>
+                    </a>
+                    <p class="text-xs text-gray-500 mt-1">
+                        <strong>{{ article.feed_name }}</strong>
+                        {% if article.published_at %}
+                        • {{ article.published_at|date:"M d, Y H:i" }}
+                        {% endif %}
+                    </p>
+                    {% if article.summary %}
+                    <p class="text-xs text-gray-600 mt-2 line-clamp-2">{{ article.summary }}</p>
+                    {% endif %}
+                    <div class="mt-3 flex gap-2">
+                        <a href="{% url 'article-reader' article.id %}" class="text-xs font-medium text-brand-600 hover:text-brand-700">
+                            Read →
+                        </a>
+                        <a href="{% url 'bookmark-from-article' article.id %}" class="text-xs font-medium text-gray-600 hover:text-gray-700">
+                            Bookmark
+                        </a>
+                        <button onclick="toggle_read_later({{ article.id }}, false, this)" class="text-xs font-medium text-gray-600 hover:text-red-600">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# ── Pagination ────────────────────────────────── #}
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-6 flex items-center justify-center gap-1">
+        {% if page_obj.has_previous %}
+        <a href="?page=1" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">
+            ← First
+        </a>
+        <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">
+            ← Previous
+        </a>
+        {% endif %}
+
+        <span class="px-3 py-1.5 text-xs text-gray-500">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">
+            Next →
+        </a>
+        <a href="?page={{ page_obj.paginator.num_pages }}" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100">
+            Last →
+        </a>
+        {% endif %}
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+        No articles saved. Start reading articles and use the <strong>Save for later</strong> option to build your reading list.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function toggle_read_later(article_id, is_read_later, element) {
+    fetch(`/api/articles/${article_id}/read-later/`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+        },
+        body: JSON.stringify({ is_read_later: is_read_later })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (!is_read_later) {
+                element.closest('.group').remove();
+            }
+        }
+    })
+    .catch(e => console.error('Error:', e));
+}
+</script>
+{% endblock %}

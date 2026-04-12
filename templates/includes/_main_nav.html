@@ -1,0 +1,28 @@
+{# Main page navigation - Feed / Bookmark / Read Later / Favorites #}
+<div class="flex items-center gap-1">
+    <a href="{% url 'main-dashboard' %}"
+       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if current_page == 'dashboard' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        📊 Dashboard
+    </a>
+    <a href="{% url 'feeds-page' %}"
+       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if current_page == 'feeds' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        📰 Feeds
+    </a>
+    <a href="{% url 'bookmarks-page' %}"
+       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if current_page == 'bookmarks' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        🔖 Bookmarks
+    </a>
+    <a href="{% url 'read-later' %}"
+       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if current_page == 'read_later' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        ⏱ Read Later
+    </a>
+    <a href="{% url 'favorites' %}"
+       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if current_page == 'favorites' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        ⭐ Favorites
+    </a>
+</div>

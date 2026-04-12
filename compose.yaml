@@ -35,8 +35,10 @@ services:
     environment:
       - DJANGO_BASE_URL=http://web:8000
       - WORKER_API_TOKEN=${WORKER_API_TOKEN:-}
+      - WORKER_CHECK_INTERVAL_SECONDS=3600
     depends_on:
       - web
+    restart: unless-stopped
 
 volumes:
   vite_node_modules:

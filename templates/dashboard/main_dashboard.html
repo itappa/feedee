@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard – Feedee{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 md:px-8 py-6">
+    {# ── Page header ───────────────────────────────── #}
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p class="text-sm text-gray-500 mt-1">Welcome back! Here's your content overview.</p>
+    </div>
+
+    {# ── Statistics grid ───────────────────────────── #}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div class="rounded-xl bg-white border border-gray-200 shadow-soft p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Feeds</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-1">{{ stats.feed_count }}</p>
+                </div>
+                <span class="text-3xl text-gray-200">📰</span>
+            </div>
+            <a href="{% url 'feeds-page' %}" class="inline-block mt-3 text-xs font-medium text-brand-600 hover:text-brand-700">
+                View all →
+            </a>
+        </div>
+
+        <div class="rounded-xl bg-white border border-gray-200 shadow-soft p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bookmarks</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-1">{{ stats.bookmark_count }}</p>
+                </div>
+                <span class="text-3xl text-gray-200">🔖</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">In {{ stats.bookmark_category_count }} categor{{ stats.bookmark_category_count|pluralize:"y,ies" }}</p>
+            <a href="{% url 'bookmarks-page' %}" class="inline-block mt-2 text-xs font-medium text-brand-600 hover:text-brand-700">
+                View all →
+            </a>
+        </div>
+
+        <div class="rounded-xl bg-white border border-gray-200 shadow-soft p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Unread</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-1">{{ stats.unread_articles }}</p>
+                </div>
+                <span class="text-3xl text-gray-200">📥</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">{{ stats.read_later_count }} to read later</p>
+            <a href="{% url 'read-later' %}" class="inline-block mt-2 text-xs font-medium text-brand-600 hover:text-brand-700">
+                View →
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {# ── Recent Articles ───────────────────────── #}
+        <section>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Articles</h2>
+                <a href="{% url 'feeds-page' %}" class="text-xs font-medium text-brand-600 hover:text-brand-700">
+                    View all
+                </a>
+            </div>
+            {% if recent_articles %}
+            <div class="space-y-3">
+                {% for article in recent_articles %}
+                <div class="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
+                    <h3 class="font-medium text-gray-900 line-clamp-2">
+                        <a href="{% url 'article-reader' article.id %}" class="hover:text-brand-600">
+                            {{ article.title }}
+                        </a>
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-1">
+                        From <strong>{{ article.feed.name }}</strong> 
+                        {% if article.published_at %}
+                        • {{ article.published_at|date:"M d, Y" }}
+                        {% endif %}
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500">No articles yet.</p>
+            {% endif %}
+        </section>
+
+        {# ── Recent Bookmarks ──────────────────────── #}
+        <section>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Bookmarks</h2>
+                <a href="{% url 'bookmarks-page' %}" class="text-xs font-medium text-brand-600 hover:text-brand-700">
+                    View all
+                </a>
+            </div>
+            {% if recent_bookmarks %}
+            <div class="space-y-3">
+                {% for bookmark in recent_bookmarks %}
+                <div class="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
+                    <h3 class="font-medium text-gray-900 line-clamp-2">
+                        <a href="{{ bookmark.url }}" target="_blank" rel="noopener noreferrer" class="hover:text-brand-600">
+                            {{ bookmark.title }}
+                        </a>
+                    </h3>
+                    <div class="flex items-center gap-2 mt-2">
+                        {% if bookmark.category %}
+                        <span class="text-xs font-medium px-2 py-0.5 rounded text-white" style="background-color: {{ bookmark.category.color }}">
+                            {{ bookmark.category.name }}
+                        </span>
+                        {% endif %}
+                        <p class="text-xs text-gray-500">{{ bookmark.created_at|date:"M d, Y" }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500">No bookmarks yet.</p>
+            {% endif %}
+        </section>
+    </div>
+</div>
+{% endblock %}

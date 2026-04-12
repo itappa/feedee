@@ -8,7 +8,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
             <h1 class="text-xl font-semibold text-gray-900">
-                {% if tag_slug %}Bookmarks tagged "{{ tag_slug }}"{% else %}All bookmarks{% endif %}
+                {% if selected_category_id %}Bookmarks in category{% elif tag_slug %}Bookmarks tagged "{{ tag_slug }}"{% else %}All bookmarks{% endif %}
             </h1>
             <p class="text-sm text-gray-500 mt-0.5">{{ bookmark_count }} bookmark{{ bookmark_count|pluralize }}</p>
         </div>
@@ -19,15 +19,41 @@
         </a>
     </div>
 
+    {# ── Category filter ────────────────────────────── #}
+    {% if categories %}
+    <div class="mb-4 pb-4 border-b border-gray-200">
+        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Categories</p>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'bookmark-list' %}{% if query %}?q={{ query }}{% endif %}"
+               class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
+                      {% if not selected_category_id %}bg-brand-600 text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}">
+                All
+            </a>
+            {% for cat in categories %}
+            <a href="{% url 'bookmark-list' %}?category={{ cat.id }}{% if query %}&q={{ query }}{% endif %}"
+               class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
+                      {% if selected_category_id|stringformat:"s" == cat.id|stringformat:"s" %}text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}"
+               {% if selected_category_id|stringformat:"s" == cat.id|stringformat:"s" %}style="background-color: {{ cat.color }}"{% endif %}>
+                {{ cat.name }}
+                <span class="{% if selected_category_id|stringformat:"s" == cat.id|stringformat:"s" %}text-white/70{% else %}text-gray-400{% endif %} ml-0.5">{{ cat.bookmark_count }}</span>
+            </a>
+            {% endfor %}
+            <a href="{% url 'bookmark-category-list' %}" class="ml-auto text-xs text-brand-600 hover:text-brand-700 font-medium">
+                Manage categories →
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
     {# ── Tag filter + search ────────────────────────── #}
     <div class="flex flex-wrap items-center gap-2 mb-4">
-        <a href="{% url 'bookmark-list' %}{% if query %}?q={{ query }}{% endif %}"
+        <a href="{% url 'bookmark-list' %}{% if query %}?q={{ query }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}"
            class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
                   {% if not tag_slug %}bg-brand-600 text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}">
-            All
+            All tags
         </a>
         {% for tag in tags %}
-        <a href="{% url 'bookmark-list' %}?tag={{ tag.slug }}{% if query %}&q={{ query }}{% endif %}"
+        <a href="{% url 'bookmark-list' %}?tag={{ tag.slug }}{% if query %}&q={{ query }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}"
            class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
                   {% if tag_slug == tag.slug %}text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}"
            {% if tag_slug == tag.slug %}style="background-color: {{ tag.color }}"{% endif %}>
@@ -38,6 +64,7 @@
 
         <form method="get" class="flex-1 min-w-[200px] ml-auto">
             {% if tag_slug %}<input type="hidden" name="tag" value="{{ tag_slug }}">{% endif %}
+            {% if selected_category_id %}<input type="hidden" name="category" value="{{ selected_category_id }}">{% endif %}
             <div class="relative">
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 21l-5.2-5.2M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 <input type="text" name="q" value="{{ query }}" placeholder="Search bookmarks…"
@@ -75,6 +102,11 @@
                     </a>
                     {% endif %}
                 </div>
+                {% if bm.category %}
+                <div class="mt-2 py-1">
+                    <span class="inline-block text-[11px] font-medium px-2 py-0.5 rounded text-white" style="background-color: {{ bm.category.color }}">{{ bm.category.name }}</span>
+                </div>
+                {% endif %}
                 {% if bm.tags %}
                 <div class="mt-2 flex flex-wrap gap-1">
                     {% for tag in bm.tags %}

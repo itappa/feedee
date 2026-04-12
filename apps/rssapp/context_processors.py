@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from django.db.models import Count, Q
 
-from .models import ArticleUserState, Bookmark, Feed, Tag
+from .models import ArticleUserState, Bookmark, BookmarkCategory, Feed, Tag
 from .utils import category_label
 
 
@@ -58,6 +58,7 @@ def sidebar_feeds(request):
 
     # Bookmark / tag data for sidebar
     sidebar_tags = []
+    sidebar_bookmark_categories = []
     total_bookmarks = 0
     if is_auth:
         total_bookmarks = Bookmark.objects.filter(user=user).count()
@@ -66,6 +67,12 @@ def sidebar_feeds(request):
             .annotate(bookmark_count=Count("bookmarks", distinct=True))
             .order_by("name")
             .values("id", "name", "slug", "color", "bookmark_count")
+        )
+        sidebar_bookmark_categories = list(
+            BookmarkCategory.objects.filter(user=user)
+            .annotate(bookmark_count=Count("bookmarks", distinct=True))
+            .order_by("display_order", "name")
+            .values("id", "name", "color", "bookmark_count")
         )
 
     theme_preference = "system"
@@ -84,6 +91,7 @@ def sidebar_feeds(request):
         "sidebar_total_read_later": total_read_later,
         "sidebar_total_favorites": total_favorites,
         "sidebar_tags": sidebar_tags,
+        "sidebar_bookmark_categories": sidebar_bookmark_categories,
         "sidebar_total_bookmarks": total_bookmarks,
         "theme_preference": theme_preference,
     }

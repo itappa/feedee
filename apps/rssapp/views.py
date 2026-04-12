@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import subprocess
@@ -24,6 +25,7 @@ from rest_framework.views import APIView
 
 from .forms import (
     BookmarkForm,
+    BookmarkCategoryForm,
     FeedCreateForm,
     FeedUpdateForm,
     SignUpForm,
@@ -31,7 +33,15 @@ from .forms import (
     TagForm,
     UserProfileForm,
 )
-from .models import Article, ArticleUserState, Bookmark, Feed, Tag, UserProfile
+from .models import (
+    Article,
+    ArticleUserState,
+    Bookmark,
+    BookmarkCategory,
+    Feed,
+    Tag,
+    UserProfile,
+)
 from .serializers import (
     ArticleIngestSerializer,
     ArticleUserStateSerializer,
@@ -976,6 +986,7 @@ class FetchMetadataView(APIView):
 def bookmark_list_view(request):
     query = request.GET.get("q", "").strip()
     tag_slug = request.GET.get("tag", "").strip()
+    category_id = request.GET.get("category", "").strip()
 
     bookmarks_qs = Bookmark.objects.filter(user=request.user).prefetch_related("tags")
     if query:
@@ -986,9 +997,20 @@ def bookmark_list_view(request):
         )
     if tag_slug:
         bookmarks_qs = bookmarks_qs.filter(tags__slug=tag_slug)
+    if category_id:
+        try:
+            cat_id = int(category_id)
+            bookmarks_qs = bookmarks_qs.filter(category_id=cat_id)
+        except (ValueError, TypeError):
+            pass
 
     tags = Tag.objects.filter(user=request.user).annotate(
         bookmark_count=Count("bookmarks")
+    )
+    categories = (
+        BookmarkCategory.objects.filter(user=request.user)
+        .annotate(bookmark_count=Count("bookmarks"))
+        .order_by("display_order")
     )
 
     paginator = Paginator(bookmarks_qs, 20)
@@ -1014,6 +1036,7 @@ def bookmark_list_view(request):
                 "thumbnail_url": bm.thumbnail_url,
                 "domain": domain,
                 "tags": list(bm.tags.all()),
+                "category": bm.category,
                 "created_at": bm.created_at,
                 "source_article_id": bm.source_article_id,
             }
@@ -1029,6 +1052,8 @@ def bookmark_list_view(request):
             "query": query,
             "tag_slug": tag_slug,
             "tags": tags,
+            "categories": categories,
+            "selected_category_id": category_id,
             "current_page": "bookmarks",
         },
     )
@@ -1078,13 +1103,23 @@ def bookmark_add_view(request):
     else:
         form = BookmarkForm()
 
+    # Restrict category queryset to user's categories
+    form.fields["category"].queryset = BookmarkCategory.objects.filter(
+        user=request.user
+    ).order_by("display_order")
+    form.fields["category"].empty_label = "Uncategorized"
+
     existing_tags = Tag.objects.filter(user=request.user).order_by("name")
+    bookmark_categories = BookmarkCategory.objects.filter(user=request.user).order_by(
+        "display_order"
+    )
     return render(
         request,
         "bookmarks/bookmark_form.html",
         {
             "form": form,
             "existing_tags": existing_tags,
+            "bookmark_categories": bookmark_categories,
             "edit_mode": False,
             "current_page": "bookmarks",
         },
@@ -1110,7 +1145,16 @@ def bookmark_edit_view(request, bookmark_id):
         tag_names = ", ".join(t.name for t in bookmark.tags.all())
         form = BookmarkForm(instance=bookmark, initial={"tag_names": tag_names})
 
+    # Restrict category queryset to user's categories
+    form.fields["category"].queryset = BookmarkCategory.objects.filter(
+        user=request.user
+    ).order_by("display_order")
+    form.fields["category"].empty_label = "Uncategorized"
+
     existing_tags = Tag.objects.filter(user=request.user).order_by("name")
+    bookmark_categories = BookmarkCategory.objects.filter(user=request.user).order_by(
+        "display_order"
+    )
     return render(
         request,
         "bookmarks/bookmark_form.html",
@@ -1118,6 +1162,7 @@ def bookmark_edit_view(request, bookmark_id):
             "form": form,
             "bookmark": bookmark,
             "existing_tags": existing_tags,
+            "bookmark_categories": bookmark_categories,
             "edit_mode": True,
             "current_page": "bookmarks",
         },
@@ -1153,7 +1198,16 @@ def bookmark_from_article_view(request, article_id):
         }
     )
 
+    # Restrict category queryset to user's categories
+    form.fields["category"].queryset = BookmarkCategory.objects.filter(
+        user=request.user
+    ).order_by("display_order")
+    form.fields["category"].empty_label = "Uncategorized"
+
     existing_tags = Tag.objects.filter(user=request.user).order_by("name")
+    bookmark_categories = BookmarkCategory.objects.filter(user=request.user).order_by(
+        "display_order"
+    )
     return render(
         request,
         "bookmarks/bookmark_form.html",
@@ -1161,6 +1215,7 @@ def bookmark_from_article_view(request, article_id):
             "form": form,
             "source_article_id": article.id,
             "existing_tags": existing_tags,
+            "bookmark_categories": bookmark_categories,
             "edit_mode": False,
             "current_page": "bookmarks",
         },
@@ -1230,3 +1285,344 @@ def tag_update_view(request, tag_id):
         messages.error(request, "Could not update tag.")
 
     return redirect("settings-tags")
+
+
+# ── Bookmark Category views ─────────────────────────────
+
+
+@login_required
+def bookmark_category_list_view(request):
+    if request.method == "POST":
+        form = BookmarkCategoryForm(request.POST)
+        if form.is_valid():
+            category = form.save(commit=False)
+            category.user = request.user
+            try:
+                category.save()
+                messages.success(request, f'Category "{category.name}" created.')
+                return redirect("bookmark-category-list")
+            except IntegrityError:
+                messages.error(request, "A category with this name already exists.")
+    else:
+        form = BookmarkCategoryForm()
+
+    categories = (
+        BookmarkCategory.objects.filter(user=request.user)
+        .annotate(bookmark_count=Count("bookmarks"))
+        .order_by("display_order", "name")
+    )
+
+    category_rows = [
+        {
+            "category": cat,
+            "form": BookmarkCategoryForm(instance=cat, prefix=f"cat-{cat.id}"),
+        }
+        for cat in categories
+    ]
+
+    return render(
+        request,
+        "bookmarks/category_list.html",
+        {
+            "category_form": form,
+            "categories": categories,
+            "category_rows": category_rows,
+            "current_page": "bookmark-category-settings",
+        },
+    )
+
+
+@login_required
+def bookmark_category_update_view(request, category_id):
+    if request.method != "POST":
+        return redirect("bookmark-category-list")
+
+    category = get_object_or_404(BookmarkCategory, id=category_id, user=request.user)
+
+    if request.POST.get("action") == "delete":
+        name = category.name
+        # Set bookmarks in this category to None (uncategorized)
+        category.bookmarks.update(category=None)
+        category.delete()
+        messages.success(request, f"Deleted category: {name}")
+        return redirect("bookmark-category-list")
+
+    form = BookmarkCategoryForm(
+        request.POST, instance=category, prefix=f"cat-{category.id}"
+    )
+    if form.is_valid():
+        c = form.save(commit=False)
+        c.user = request.user
+        c.save()
+        messages.success(request, f"Updated category: {c.name}")
+    else:
+        messages.error(request, "Could not update category.")
+
+    return redirect("bookmark-category-list")
+
+
+@login_required
+def bookmark_category_reorder_view(request):
+    """API endpoint to reorder bookmark categories via AJAX."""
+    if request.method != "POST":
+        return redirect("bookmark-category-list")
+
+    try:
+        import json
+
+        data = json.loads(request.body)
+        category_ids = data.get("category_ids", [])
+
+        for order, cat_id in enumerate(category_ids):
+            BookmarkCategory.objects.filter(id=int(cat_id), user=request.user).update(
+                display_order=order
+            )
+
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Failed to reorder bookmark categories: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ── Helper functions for shared views ────────────────────────
+
+
+def _get_read_later_articles(user):
+    """Get articles marked as read_later"""
+    return (
+        ArticleUserState.objects.filter(
+            user=user, article__isnull=False, is_read_later=True
+        )
+        .select_related("article__feed")
+        .order_by("-article__published_at")
+    )
+
+
+def _get_favorites_articles(user):
+    """Get articles marked as favorite"""
+    return (
+        ArticleUserState.objects.filter(
+            user=user, article__isnull=False, is_favorite=True
+        )
+        .select_related("article__feed")
+        .order_by("-article__published_at")
+    )
+
+
+def _get_dashboard_statistics(user):
+    """Gather statistics for dashboard"""
+    feed_count = Feed.objects.count()
+    bookmark_count = Bookmark.objects.filter(user=user).count()
+    bookmark_category_count = BookmarkCategory.objects.filter(user=user).count()
+
+    unread_articles = ArticleUserState.objects.filter(user=user, is_read=False).count()
+    read_later_count = ArticleUserState.objects.filter(
+        user=user, is_read_later=True
+    ).count()
+    favorites_count = ArticleUserState.objects.filter(
+        user=user, is_favorite=True
+    ).count()
+
+    return {
+        "feed_count": feed_count,
+        "bookmark_count": bookmark_count,
+        "bookmark_category_count": bookmark_category_count,
+        "unread_articles": unread_articles,
+        "read_later_count": read_later_count,
+        "favorites_count": favorites_count,
+    }
+
+
+# ── New page views ──────────────────────────────────────────
+
+
+@login_required
+def main_dashboard_view(request):
+    """Main dashboard with statistics and navigation"""
+    stats = _get_dashboard_statistics(request.user)
+
+    recent_articles = (
+        Article.objects.filter(feed__isnull=False)
+        .select_related("feed")
+        .order_by("-published_at")[:5]
+    )
+
+    recent_bookmarks = (
+        Bookmark.objects.filter(user=request.user)
+        .select_related("category")
+        .order_by("-created_at")[:5]
+    )
+
+    context = {
+        "current_page": "dashboard",
+        "stats": stats,
+        "recent_articles": recent_articles,
+        "recent_bookmarks": recent_bookmarks,
+    }
+    return render(request, "dashboard/main_dashboard.html", context)
+
+
+@login_required
+def feeds_page_view(request):
+    """Feed-focused page with feed list and categories"""
+    base_qs = Article.objects.filter(feed__isnull=False).select_related("feed")
+
+    feed_categories = Feed.objects.values_list("category", flat=True).distinct()
+    feed_categories = sorted([c for c in feed_categories if c])
+
+    selected_category = request.GET.get("category", "").strip()
+    if selected_category:
+        base_qs = base_qs.filter(feed__category=selected_category)
+
+    context = _build_article_list_context(request, base_qs)
+    context.update(
+        {
+            "current_page": "feeds",
+            "feed_categories": feed_categories,
+            "selected_category": selected_category,
+        }
+    )
+    return render(request, "rss/feeds_page.html", context)
+
+
+@login_required
+def bookmarks_page_view(request):
+    """Bookmark-focused page"""
+    query = request.GET.get("q", "").strip()
+    tag_slug = request.GET.get("tag", "").strip()
+    category_id = request.GET.get("category", "").strip()
+
+    bookmarks_qs = Bookmark.objects.filter(user=request.user).prefetch_related("tags")
+    if query:
+        bookmarks_qs = bookmarks_qs.filter(
+            Q(title__icontains=query)
+            | Q(description__icontains=query)
+            | Q(url__icontains=query)
+        )
+    if tag_slug:
+        bookmarks_qs = bookmarks_qs.filter(tags__slug=tag_slug)
+    if category_id:
+        try:
+            cat_id = int(category_id)
+            bookmarks_qs = bookmarks_qs.filter(category_id=cat_id)
+        except (ValueError, TypeError):
+            pass
+
+    tags = Tag.objects.filter(user=request.user).annotate(
+        bookmark_count=Count("bookmarks")
+    )
+    categories = (
+        BookmarkCategory.objects.filter(user=request.user)
+        .annotate(bookmark_count=Count("bookmarks"))
+        .order_by("display_order")
+    )
+
+    paginator = Paginator(bookmarks_qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    bookmark_cards = []
+    for bm in page_obj.object_list:
+        domain = urlparse(bm.url).netloc
+        has_source_article = bool(bm.source_article_id)
+        primary_url = (
+            reverse("article-reader", args=[bm.source_article_id])
+            if has_source_article
+            else bm.url
+        )
+        bookmark_cards.append(
+            {
+                "id": bm.id,
+                "url": bm.url,
+                "primary_url": primary_url,
+                "open_in_new_tab": not has_source_article,
+                "title": bm.title,
+                "description": bm.description,
+                "thumbnail_url": bm.thumbnail_url,
+                "domain": domain,
+                "tags": list(bm.tags.all()),
+                "category": bm.category,
+                "created_at": bm.created_at,
+                "source_article_id": bm.source_article_id,
+            }
+        )
+
+    context = {
+        "current_page": "bookmarks",
+        "bookmark_cards": bookmark_cards,
+        "page_obj": page_obj,
+        "bookmark_count": bookmarks_qs.count(),
+        "query": query,
+        "tag_slug": tag_slug,
+        "tags": tags,
+        "categories": categories,
+        "selected_category_id": category_id,
+    }
+    return render(request, "bookmarks/bookmarks_page.html", context)
+
+
+@login_required
+def read_later_view(request):
+    """Read later page - shows articles marked for later"""
+    read_later_qs = _get_read_later_articles(request.user)
+
+    paginator = Paginator(read_later_qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    article_cards = []
+    for state in page_obj.object_list:
+        article = state.article
+        article_cards.append(
+            {
+                "id": article.id,
+                "title": article.title,
+                "link": article.link,
+                "feed_name": article.feed.name if article.feed else "Unknown",
+                "summary": article.summary[:200] + "..."
+                if len(article.summary) > 200
+                else article.summary,
+                "published_at": article.published_at,
+                "image_url": article.image_url,
+            }
+        )
+
+    context = {
+        "current_page": "read_later",
+        "article_cards": article_cards,
+        "page_obj": page_obj,
+        "count": read_later_qs.count(),
+    }
+    return render(request, "shared/read_later.html", context)
+
+
+@login_required
+def favorites_view(request):
+    """Favorites page - shows articles marked as favorites"""
+    favorites_qs = _get_favorites_articles(request.user)
+
+    paginator = Paginator(favorites_qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    article_cards = []
+    for state in page_obj.object_list:
+        article = state.article
+        article_cards.append(
+            {
+                "id": article.id,
+                "title": article.title,
+                "link": article.link,
+                "feed_name": article.feed.name if article.feed else "Unknown",
+                "summary": article.summary[:200] + "..."
+                if len(article.summary) > 200
+                else article.summary,
+                "published_at": article.published_at,
+                "image_url": article.image_url,
+            }
+        )
+
+    context = {
+        "current_page": "favorites",
+        "article_cards": article_cards,
+        "page_obj": page_obj,
+        "count": favorites_qs.count(),
+    }
+    return render(request, "shared/favorites.html", context)
