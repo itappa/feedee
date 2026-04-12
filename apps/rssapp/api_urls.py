@@ -3,6 +3,8 @@ from django.urls import path
 from .views import (
     ArticleIngestView,
     ArticleUserStateView,
+    BookmarkletCreateView,
+    DisplayModePreferenceView,
     FeedFetchStatusView,
     FeedListView,
     FeedReorderView,
@@ -25,5 +27,15 @@ urlpatterns = [
     ),
     path(
         "bookmarks/fetch-metadata/", FetchMetadataView.as_view(), name="fetch-metadata"
+    ),
+    path(
+        "bookmarklet/create/",
+        BookmarkletCreateView.as_view(),
+        name="bookmarklet-create",
+    ),
+    path(
+        "preferences/display-mode/",
+        DisplayModePreferenceView.as_view(),
+        name="display-mode-preference",
     ),
 ]

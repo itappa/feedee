@@ -285,7 +285,7 @@
         <form method="post">
             {% csrf_token %}
             <input type="hidden" name="form_action" value="profile">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Default sort order</label>
                     {{ profile_form.default_sort }}
@@ -297,6 +297,10 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Theme</label>
                     {{ profile_form.theme_preference }}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Display mode</label>
+                    {{ profile_form.default_display_mode }}
                 </div>
             </div>
             <div class="flex justify-end">

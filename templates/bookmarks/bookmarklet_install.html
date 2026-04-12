@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load tailwind_tags %}
+
+{% block title %}Install Bookmarklet - Feedee{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-8 px-4">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-3xl font-bold mb-6">📌 Bookmarklet - Save URLs Quickly</h1>
+        
+        <p class="text-gray-700 mb-6">
+            A bookmarklet allows you to save any webpage to Feedee with a single click, directly from your browser's bookmarks bar.
+        </p>
+
+        <!-- Installation Instructions -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-900">How to Install</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-semibold text-gray-800 mb-2">1. Click & Drag (Easiest)</h3>
+                    <p class="text-gray-700 mb-3">
+                        Make sure your browser's bookmarks bar is visible. Then drag the button below to your bookmarks bar:
+                    </p>
+                    <a href="{{ bookmarklet_code }}" 
+                       class="inline-block px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg cursor-move"
+                       draggable="true"
+                       title="Drag this to your bookmarks bar">
+                        📎 Save to Feedee
+                    </a>
+                </div>
+
+                <div class="border-t border-gray-300 pt-4">
+                    <h3 class="font-semibold text-gray-800 mb-2">2. Manual Installation</h3>
+                    <p class="text-gray-700 mb-3">
+                        Or, create a new bookmark in your browser with the following code in the URL field:
+                    </p>
+                    <div class="bg-gray-800 text-gray-100 p-4 rounded font-mono text-xs overflow-x-auto">
+                        <code id="bookmarklet-code">{{ bookmarklet_code }}</code>
+                    </div>
+                    <button onclick="copyToClipboard('bookmarklet-code')" 
+                            class="mt-3 px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded">
+                        Copy Code
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage Instructions -->
+        <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4 text-green-900">How to Use</h2>
+            
+            <ol class="list-decimal list-inside space-y-3 text-gray-700">
+                <li>Visit any webpage you want to save</li>
+                <li>Click the <strong>'Save to Feedee'</strong> bookmarklet in your bookmarks bar</li>
+                <li>Optionally select text before clicking to add it as a description</li>
+                <li>A notification will confirm the bookmark was saved</li>
+                <li>Access your bookmark anytime from the Bookmarks page</li>
+            </ol>
+        </div>
+
+        <!-- Technical Details -->
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800">Technical Details</h2>
+            
+            <ul class="space-y-2 text-gray-700 text-sm">
+                <li>✓ Bookmarklet uses your current session for authentication</li>
+                <li>✓ Works on any public webpage (respects your privacy)</li>
+                <li>✓ Automatically fetches page title as bookmark name</li>
+                <li>✓ Selected text becomes the bookmark description</li>
+                {% if user_token %}
+                <li>✓ Your account has a token generated for enhanced security</li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <!-- Support -->
+        <div class="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded">
+            <p class="text-sm text-gray-700">
+                <strong>Having trouble?</strong> Ensure JavaScript is enabled in your browser, 
+                and that you're logged into Feedee in the same browser tab.
+            </p>
+        </div>
+
+        <div class="mt-6">
+            <a href="{% url 'bookmarks-page' %}" class="text-blue-500 hover:text-blue-700">
+                ← Back to Bookmarks
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    const text = element.innerText || element.textContent;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Bookmarklet code copied to clipboard!');
+    }).catch(() => {
+        alert('Failed to copy. Please try manual selection.');
+    });
+}
+</script>
+{% endblock %}

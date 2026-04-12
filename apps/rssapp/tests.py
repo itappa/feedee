@@ -9,10 +9,24 @@ from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
 from .forms import FeedCreateForm
-from .models import Article, ArticleUserState, Bookmark, Feed, Tag, UserProfile
+from .models import (
+    Article,
+    ArticleUserState,
+    Bookmark,
+    BookmarkUserState,
+    Feed,
+    Tag,
+    UserProfile,
+)
 
 
 class AuthenticationFlowTests(TestCase):
+    def test_homepage_loads_for_anonymous(self):
+        response = self.client.get(reverse("homepage"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Homepage")
+
     def test_login_page_shows_register_link(self):
         response = self.client.get(reverse("login"))
 
@@ -28,11 +42,13 @@ class AuthenticationFlowTests(TestCase):
             f"{reverse('login')}?next={reverse('bookmark-list')}",
         )
 
-    def test_anonymous_dashboard_hides_bookmarks_sidebar(self):
+    def test_anonymous_today_alias_redirects_to_login(self):
         response = self.client.get(reverse("rss-dashboard"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, reverse("bookmark-list"))
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('rss-dashboard')}",
+        )
 
     def test_register_page_creates_user_and_logs_in(self):
         response = self.client.post(
@@ -45,7 +61,7 @@ class AuthenticationFlowTests(TestCase):
             follow=True,
         )
 
-        self.assertRedirects(response, reverse("rss-dashboard"))
+        self.assertRedirects(response, reverse("homepage"))
         user = get_user_model().objects.get(email="newuser@example.com")
         self.assertEqual(user.username, "newuser@example.com")
         self.assertTrue(response.context["user"].is_authenticated)
@@ -319,9 +335,53 @@ class ArticleUserStateTests(TestCase):
         response = self.client.post(toggle_url, data={"q": "django", "page": "3"})
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/?q=django&page=3")
+        self.assertEqual(
+            response["Location"],
+            f"{reverse('rss-dashboard')}?q=django&page=3",
+        )
         state = ArticleUserState.objects.get(user=self.user, article=self.article)
         self.assertEqual(state.is_favorite, True)
+
+    def test_bookmark_pin_toggle_updates_bookmark_state(self):
+        self.client.force_login(self.user)
+        bookmark = Bookmark.objects.create(
+            user=self.user,
+            url="https://example.com/bookmark",
+            normalized_url="https://example.com/bookmark",
+            hash="bookmark-pin-hash",
+            title="Pin target",
+        )
+        toggle_url = reverse("bookmark-state-toggle", args=[bookmark.id, "is_pinned"])
+
+        first_response = self.client.post(toggle_url)
+        self.assertEqual(first_response.status_code, 302)
+        state = BookmarkUserState.objects.get(user=self.user, bookmark=bookmark)
+        self.assertEqual(state.is_pinned, True)
+
+        second_response = self.client.post(toggle_url)
+        self.assertEqual(second_response.status_code, 302)
+        state.refresh_from_db()
+        self.assertEqual(state.is_pinned, False)
+
+    def test_homepage_shows_pinned_bookmarks_for_authenticated_user(self):
+        self.client.force_login(self.user)
+        bookmark = Bookmark.objects.create(
+            user=self.user,
+            url="https://example.com/pinned",
+            normalized_url="https://example.com/pinned",
+            hash="pinned-hash",
+            title="Pinned bookmark",
+        )
+        BookmarkUserState.objects.create(
+            user=self.user,
+            bookmark=bookmark,
+            is_pinned=True,
+        )
+
+        response = self.client.get(reverse("homepage"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pinned bookmark")
 
     def test_web_toggle_anonymous_does_not_create_state_and_shows_error(self):
         toggle_url = reverse(
@@ -762,6 +822,19 @@ class FeedArticlesViewTests(TestCase):
         content = response.content.decode()
         self.assertIn("All", content)
         self.assertIn("Favorites", content)
+
+    def test_feeds_page_includes_state_filters_and_sort_controls(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("feeds-page"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Unread")
+        self.assertContains(response, "Read Later")
+        self.assertContains(response, "Favorites")
+        self.assertContains(response, "Latest")
+        self.assertContains(response, "Oldest")
+        self.assertContains(response, "Smart")
 
     def test_dashboard_sidebar_marks_all_articles_badge_as_unread(self):
         self.client.force_login(self.user)

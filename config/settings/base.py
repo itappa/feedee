@@ -151,6 +151,15 @@ try:
 except ValueError:
     FULL_TEXT_EXTRACTION_SYNC_LIMIT = 1
 
+# Async extraction task queue settings
+EXTRACTION_TASK_MAX_RETRIES = int(os.environ.get("EXTRACTION_TASK_MAX_RETRIES", "3"))
+EXTRACTION_TASK_TIMEOUT_SECONDS = int(
+    os.environ.get("EXTRACTION_TASK_TIMEOUT_SECONDS", "30")
+)
+EXTRACTION_TASK_PROCESSING_BATCH_SIZE = int(
+    os.environ.get("EXTRACTION_TASK_PROCESSING_BATCH_SIZE", "10")
+)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

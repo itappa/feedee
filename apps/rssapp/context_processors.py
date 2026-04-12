@@ -31,11 +31,13 @@ def sidebar_feeds(request):
     total_unread = 0
     total_read_later = 0
     total_favorites = 0
+    total_saved = 0
 
     if is_auth:
         user_states = ArticleUserState.objects.filter(user=user)
         total_read_later = user_states.filter(is_read_later=True).count()
         total_favorites = user_states.filter(is_favorite=True).count()
+        total_saved = total_read_later + total_favorites
 
     feed_list = []
     grouped = OrderedDict()
@@ -90,6 +92,7 @@ def sidebar_feeds(request):
         "sidebar_total_unread": total_unread,
         "sidebar_total_read_later": total_read_later,
         "sidebar_total_favorites": total_favorites,
+        "sidebar_total_saved": total_saved,
         "sidebar_tags": sidebar_tags,
         "sidebar_bookmark_categories": sidebar_bookmark_categories,
         "sidebar_total_bookmarks": total_bookmarks,

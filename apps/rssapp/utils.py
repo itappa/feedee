@@ -51,6 +51,13 @@ def generate_article_hash(
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
+def generate_bookmark_hash(normalized_url: str) -> str:
+    """Generate SHA-256 hash for bookmark deduplication based on normalized URL."""
+    if not normalized_url or not normalized_url.strip():
+        return ""
+    return hashlib.sha256(normalized_url.strip().encode("utf-8")).hexdigest()
+
+
 def _is_private_ip(hostname: str) -> bool:
     """Check if a hostname resolves to a private/loopback IP (SSRF protection)."""
     try:

@@ -50,9 +50,10 @@ class FeedCreateForm(forms.ModelForm):
         cleaned = super().clean()
         name = (cleaned.get("name") or "").strip()
         if not name:
-            fallback_name = self.discovered_title or urlsplit(
-                self.discovered_feed_url or cleaned.get("url") or ""
-            ).netloc
+            fallback_name = (
+                self.discovered_title
+                or urlsplit(self.discovered_feed_url or cleaned.get("url") or "").netloc
+            )
             if fallback_name:
                 cleaned["name"] = fallback_name
         return cleaned
@@ -184,7 +185,12 @@ class BookmarkCategoryForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ["default_sort", "items_per_page", "theme_preference"]
+        fields = [
+            "default_sort",
+            "items_per_page",
+            "theme_preference",
+            "default_display_mode",
+        ]
         widgets = {
             "default_sort": forms.Select(
                 attrs={
@@ -199,6 +205,11 @@ class UserProfileForm(forms.ModelForm):
                 }
             ),
             "theme_preference": forms.Select(
+                attrs={
+                    "class": _INPUT_CLASS,
+                }
+            ),
+            "default_display_mode": forms.Select(
                 attrs={
                     "class": _INPUT_CLASS,
                 }

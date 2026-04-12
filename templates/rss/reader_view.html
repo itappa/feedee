@@ -6,7 +6,7 @@
 <div class="max-w-3xl mx-auto px-4 md:px-8 py-6">
     {# ── Toolbar ────────────────────────────────────── #}
     <div class="flex items-center justify-between gap-3 mb-5">
-        <a href="{% if article.feed %}{% url 'feed-articles' article.feed.id %}{% else %}{% url 'rss-dashboard' %}{% endif %}"
+        <a href="{% if article.feed %}{% url 'feed-articles' article.feed.id %}{% else %}{% url 'feeds-page' %}{% endif %}"
            class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15 19l-7-7 7-7"/></svg>
             Back to {{ article.feed.name|default:"articles" }}
@@ -149,7 +149,7 @@ document.addEventListener('keydown', function(e) {
     {% if prev_article %}if (e.key === 'k' || e.key === 'ArrowLeft') { e.preventDefault(); window.location.href = "{% url 'article-reader' prev_article.id %}"; }{% endif %}
     {% if next_article %}if (e.key === 'j' || e.key === 'ArrowRight') { e.preventDefault(); window.location.href = "{% url 'article-reader' next_article.id %}"; }{% endif %}
     if (e.key === 'o') window.open("{{ article.link }}", '_blank');
-    if (e.key === 'u' || e.key === 'Escape') window.location.href = "{% if article.feed %}{% url 'feed-articles' article.feed.id %}{% else %}{% url 'rss-dashboard' %}{% endif %}";
+    if (e.key === 'u' || e.key === 'Escape') window.location.href = "{% if article.feed %}{% url 'feed-articles' article.feed.id %}{% else %}{% url 'feeds-page' %}{% endif %}";
 });
 </script>
 {% endblock %}

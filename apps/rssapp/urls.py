@@ -11,28 +11,38 @@ from .views import (
     bookmark_edit_view,
     bookmark_from_article_view,
     bookmark_list_view,
+    bookmark_state_toggle_view,
+    bookmarklet_view,
     bookmarks_page_view,
-    dashboard_view,
     export_opml_view,
     favorites_view,
     feed_articles_view,
     feed_update_view,
     feeds_page_view,
+    homepage_view,
     import_opml_view,
     main_dashboard_view,
     mark_all_read_view,
     read_later_view,
     reader_view,
+    saved_view,
     settings_view,
     tag_update_view,
 )
 
 urlpatterns = [
-    path("", dashboard_view, name="rss-dashboard"),
+    path("", homepage_view, name="homepage"),
+    path("today/", feeds_page_view, name="rss-dashboard"),
     # Main pages
-    path("dashboard/", main_dashboard_view, name="main-dashboard"),
+    path("overview/", main_dashboard_view, name="overview"),
+    path(
+        "dashboard/",
+        RedirectView.as_view(pattern_name="overview", permanent=True),
+        name="main-dashboard",
+    ),
     path("feeds/", feeds_page_view, name="feeds-page"),
     path("bookmarks/", bookmarks_page_view, name="bookmarks-page"),
+    path("saved/", saved_view, name="saved"),
     path("read-later/", read_later_view, name="read-later"),
     path("favorites/", favorites_view, name="favorites"),
     # Unified settings
@@ -71,6 +81,7 @@ urlpatterns = [
     # Bookmarks (legacy routes kept for compatibility)
     path("old-bookmarks/", bookmark_list_view, name="bookmark-list"),
     path("bookmarks/add/", bookmark_add_view, name="bookmark-add"),
+    path("bookmarks/bookmarklet/", bookmarklet_view, name="bookmarklet"),
     path("bookmarks/<int:bookmark_id>/edit/", bookmark_edit_view, name="bookmark-edit"),
     path(
         "bookmarks/<int:bookmark_id>/delete/",
@@ -81,6 +92,11 @@ urlpatterns = [
         "bookmarks/from-article/<int:article_id>/",
         bookmark_from_article_view,
         name="bookmark-from-article",
+    ),
+    path(
+        "bookmarks/<int:bookmark_id>/state/<str:state_field>/toggle/",
+        bookmark_state_toggle_view,
+        name="bookmark-state-toggle",
     ),
     # Tags
     path("tags/<int:tag_id>/update/", tag_update_view, name="tag-update"),

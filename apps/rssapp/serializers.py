@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ArticleUserState, Bookmark, BookmarkCategory, Feed
+from .models import ArticleUserState, BookmarkCategory, Feed, UserProfile
 
 
 class FeedSerializer(serializers.ModelSerializer):
@@ -79,7 +79,38 @@ class BookmarkCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BookmarkCategory
-        fields = ["id", "name", "description", "color", "display_order", "bookmark_count"]
+        fields = [
+            "id",
+            "name",
+            "description",
+            "color",
+            "display_order",
+            "bookmark_count",
+        ]
 
     def get_bookmark_count(self, obj):
         return obj.bookmarks.count()
+
+
+class BookmarkletCreateSerializer(serializers.Serializer):
+    """Lightweight serializer for bookmarklet POST requests."""
+
+    url = serializers.URLField(max_length=2048)
+    title = serializers.CharField(max_length=500, allow_blank=True, required=False)
+    description = serializers.CharField(allow_blank=True, required=False)
+    tags = serializers.CharField(
+        allow_blank=True,
+        required=False,
+        help_text="Comma-separated tag names",
+    )
+    category_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_url(self, value):
+        """Ensure URL is valid and not already bookmarked."""
+        return value.strip()
+
+
+class DisplayModePreferenceSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(
+        choices=[choice[0] for choice in UserProfile.DISPLAY_MODE_CHOICES]
+    )

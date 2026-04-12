@@ -5,10 +5,59 @@ from django.utils.text import slugify
 import nh3
 
 
+class Category(models.Model):
+    """Unified category model for feeds and bookmarks."""
+
+    CONTENT_TYPE_CHOICES = [
+        ("feed", "Feed"),
+        ("bookmark", "Bookmark"),
+        ("both", "Both"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="categories",
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, default="")
+    color = models.CharField(max_length=7, default="#3B82F6")
+    content_type = models.CharField(
+        max_length=20,
+        choices=CONTENT_TYPE_CHOICES,
+        default="both",
+        help_text="Which content types this category applies to",
+    )
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "name"],
+                name="uniq_user_category_name",
+            ),
+        ]
+        ordering = ["display_order", "name"]
+        verbose_name_plural = "Categories"
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Feed(models.Model):
     name = models.CharField(max_length=255)
     url = models.URLField(unique=True)
     category = models.CharField(max_length=100, blank=True, default="")
+    category_v2 = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="feeds",
+        help_text="New unified category (category field for backward compatibility)",
+    )
     display_order = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True)
     last_fetched_at = models.DateTimeField(null=True, blank=True)
@@ -158,6 +207,82 @@ class ArticleUserState(models.Model):
         return f"state(user={self.user_id}, article={self.article_id})"
 
 
+class BookmarkUserState(models.Model):
+    """Parallel to ArticleUserState: tracks bookmark user interactions."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bookmark_states",
+    )
+    bookmark = models.ForeignKey(
+        "Bookmark", on_delete=models.CASCADE, related_name="user_states"
+    )
+    # is_pinned is distinct from favorite: pinned is for homepage placement.
+    is_pinned = models.BooleanField(default=False, db_index=True)
+    is_favorite = models.BooleanField(default=False)
+    is_read_later = models.BooleanField(default=False)
+    is_read = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "bookmark"], name="uniq_bookmark_user_state"
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "updated_at"]),
+            models.Index(fields=["user", "is_read_later"]),
+            models.Index(fields=["user", "is_favorite"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"bookmark_state(user={self.user_id}, bookmark={self.bookmark_id})"
+
+
+class ExtractionTask(models.Model):
+    """Task model for asynchronous full-text article extraction."""
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("processing", "Processing"),
+        ("success", "Success"),
+        ("failed", "Failed"),
+        ("skipped", "Skipped"),
+    ]
+
+    article = models.OneToOneField(
+        Article,
+        on_delete=models.CASCADE,
+        related_name="extraction_task",
+        primary_key=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        db_index=True,
+    )
+    retry_count = models.PositiveIntegerField(default=0)
+    max_retries = models.PositiveIntegerField(default=3)
+    error_message = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["status", "retry_count"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"ExtractionTask({self.article_id}, {self.status})"
+
+
 class UserProfile(models.Model):
     SORT_CHOICES = [
         ("published_desc", "Newest first"),
@@ -167,6 +292,11 @@ class UserProfile(models.Model):
         ("system", "System"),
         ("light", "Light"),
         ("dark", "Dark"),
+    ]
+    DISPLAY_MODE_CHOICES = [
+        ("list", "List view"),
+        ("compact", "Compact view"),
+        ("card", "Card view"),
     ]
 
     user = models.OneToOneField(
@@ -182,6 +312,12 @@ class UserProfile(models.Model):
         max_length=10,
         choices=THEME_CHOICES,
         default="system",
+    )
+    default_display_mode = models.CharField(
+        max_length=20,
+        choices=DISPLAY_MODE_CHOICES,
+        default="compact",
+        help_text="Default display mode for article and bookmark lists",
     )
 
     def __str__(self) -> str:
@@ -241,6 +377,19 @@ class BookmarkCategory(models.Model):
 
 class Bookmark(models.Model):
     url = models.URLField(max_length=2048)
+    normalized_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="URL without tracking parameters for deduplication",
+    )
+    hash = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="SHA256 hash for deduplication (url-based)",
+    )
     title = models.CharField(max_length=500)
     description = models.TextField(blank=True, default="")
     thumbnail_url = models.URLField(max_length=2048, blank=True, default="")
@@ -262,6 +411,15 @@ class Bookmark(models.Model):
         null=True,
         blank=True,
         related_name="bookmarks",
+        help_text="Legacy category field (use category_v2 for new data)",
+    )
+    category_v2 = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bookmarks",
+        help_text="New unified category",
     )
     tags = models.ManyToManyField(Tag, blank=True, related_name="bookmarks")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -272,8 +430,30 @@ class Bookmark(models.Model):
             models.UniqueConstraint(
                 fields=["user", "url"], name="uniq_user_bookmark_url"
             ),
+            models.UniqueConstraint(
+                fields=["user", "normalized_url"],
+                condition=models.Q(normalized_url__gt=""),
+                name="uniq_user_bookmark_normalized_url",
+            ),
         ]
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "normalized_url"]),
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        """Automatically compute normalized_url and hash on save."""
+        from .utils import normalize_url, generate_bookmark_hash
+
+        if not self.normalized_url and self.url:
+            self.normalized_url = normalize_url(self.url)
+
+        if not self.hash and self.normalized_url:
+            self.hash = generate_bookmark_hash(self.normalized_url)
+
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.title
