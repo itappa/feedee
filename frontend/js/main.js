@@ -84,6 +84,33 @@ import "../css/main.css";
     ? csrf.content || csrf.value
     : "";
 
+  function currentStateFilter() {
+    var params = new URLSearchParams(window.location.search);
+    return params.get("state") || "all";
+  }
+
+  function removeArticleCardRealtime(card) {
+    if (!card) return;
+    var listContainer = card.parentElement;
+
+    card.style.transition = "opacity 150ms ease, transform 150ms ease";
+    card.style.opacity = "0";
+    card.style.transform = "scale(0.98)";
+
+    window.setTimeout(function () {
+      card.remove();
+      if (!listContainer) return;
+
+      if (!listContainer.querySelector(".article-card") && !document.getElementById("unread-empty-state")) {
+        var empty = document.createElement("div");
+        empty.id = "unread-empty-state";
+        empty.className = "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700";
+        empty.textContent = "All visible unread articles are now read.";
+        listContainer.parentNode.insertBefore(empty, listContainer.nextSibling);
+      }
+    }, 170);
+  }
+
   document.addEventListener("click", function (e) {
     var btn = e.target.closest(".state-toggle");
     if (!btn) return;
@@ -146,6 +173,10 @@ import "../css/main.css";
             if (title) {
               title.classList.toggle("text-gray-500", data[field]);
               title.classList.toggle("text-gray-900", !data[field]);
+            }
+
+            if (data[field] && currentStateFilter() === "unread") {
+              removeArticleCardRealtime(card);
             }
           }
         }
