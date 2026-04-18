@@ -25,6 +25,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "apps.rssapp.apps.RssappConfig",
+    "apps.rss_service.apps.RssServiceConfig",
+    "apps.bookmark_service.apps.BookmarkServiceConfig",
 ]
 
 MIDDLEWARE = [

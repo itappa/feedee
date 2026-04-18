@@ -12,15 +12,16 @@
             Back to {{ article.feed.name|default:"articles" }}
         </a>
         <div class="flex items-center gap-1.5">
-            {# ── Favorite ── #}
-            <form method="post" action="{% url 'article-state-toggle' article.id 'is_favorite' %}">
+            {# ── Save to Bookmarks ── #}
+            {% if request.user.is_authenticated %}
+            <form method="post" action="{% url 'article-save' article.id %}">
                 {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.path }}">
-                <button title="{% if is_favorite %}Remove favorite{% else %}Add favorite{% endif %}"
-                        class="p-2 rounded-lg transition-colors {% if is_favorite %}text-amber-500 hover:bg-gray-100{% else %}text-gray-400 hover:text-amber-500 hover:bg-gray-100{% endif %}">
-                    <svg class="w-4 h-4" fill="{% if is_favorite %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M11.05 3.612c.35-.86 1.55-.86 1.9 0l2.07 5.07 5.45.46c.94.08 1.32 1.24.6 1.86l-4.13 3.56 1.26 5.32c.22.92-.78 1.64-1.6 1.16L12 18.26l-4.53 2.76c-.82.48-1.82-.24-1.6-1.16l1.26-5.32-4.13-3.56c-.72-.62-.34-1.78.6-1.86l5.45-.46 2.07-5.07z"/></svg>
+                <button title="Save to Bookmarks"
+                        class="p-2 rounded-lg transition-colors text-gray-400 hover:text-violet-500 hover:bg-gray-100">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                 </button>
             </form>
+            {% endif %}
             {# ── Read Later ── #}
             <form method="post" action="{% url 'article-state-toggle' article.id 'is_read_later' %}">
                 {% csrf_token %}
@@ -46,13 +47,6 @@
                class="p-2 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-gray-100 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
             </a>
-            {# ── Bookmark ── #}
-            {% if request.user.is_authenticated %}
-            <a href="{% url 'bookmark-from-article' article.id %}" title="Save as bookmark"
-               class="p-2 rounded-lg text-gray-400 hover:text-violet-500 hover:bg-gray-100 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-            </a>
-            {% endif %}
         </div>
     </div>
 

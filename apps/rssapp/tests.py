@@ -21,11 +21,10 @@ from .models import (
 
 
 class AuthenticationFlowTests(TestCase):
-    def test_homepage_loads_for_anonymous(self):
+    def test_homepage_redirects_anonymous_to_login(self):
         response = self.client.get(reverse("homepage"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Homepage")
+        self.assertRedirects(response, f"{reverse('login')}?next={reverse('homepage')}")
 
     def test_login_page_shows_register_link(self):
         response = self.client.get(reverse("login"))
@@ -85,6 +84,32 @@ class AuthenticationFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "An account with this email already exists.")
+
+    def test_saved_route_returns_404(self):
+        response = self.client.get("/saved/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_read_later_legacy_route_redirects_to_feeds_state_filter(self):
+        user = get_user_model().objects.create_user(
+            username="reader",
+            email="reader@example.com",
+            password="Password123!",
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("read-later"))
+        self.assertRedirects(response, f"{reverse('feeds-page')}?state=read-later")
+
+    def test_favorites_legacy_route_redirects_to_feeds_state_filter(self):
+        user = get_user_model().objects.create_user(
+            username="fav-reader",
+            email="fav-reader@example.com",
+            password="Password123!",
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("favorites"))
+        self.assertRedirects(response, f"{reverse('feeds-page')}?state=read-later")
 
 
 class HTMLSanitizationTests(TestCase):
@@ -297,7 +322,6 @@ class ArticleUserStateTests(TestCase):
         response = self.client.get(self.state_api_url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["is_favorite"], False)
         self.assertEqual(response.json()["is_read_later"], False)
         self.assertEqual(response.json()["is_read"], False)
 
@@ -306,30 +330,28 @@ class ArticleUserStateTests(TestCase):
 
         create_response = self.client.patch(
             self.state_api_url,
-            data={"is_favorite": True, "is_read_later": True},
+            data={"is_read_later": True},
             content_type="application/json",
         )
         self.assertEqual(create_response.status_code, 200)
         state = ArticleUserState.objects.get(user=self.user, article=self.article)
-        self.assertEqual(state.is_favorite, True)
         self.assertEqual(state.is_read_later, True)
         self.assertEqual(state.is_read, False)
 
         update_response = self.client.patch(
             self.state_api_url,
-            data={"is_read": True, "is_favorite": False},
+            data={"is_read": True},
             content_type="application/json",
         )
         self.assertEqual(update_response.status_code, 200)
         state.refresh_from_db()
-        self.assertEqual(state.is_favorite, False)
         self.assertEqual(state.is_read_later, True)
         self.assertEqual(state.is_read, True)
 
     def test_web_toggle_authenticated_updates_state_and_preserves_query_params(self):
         self.client.force_login(self.user)
         toggle_url = reverse(
-            "article-state-toggle", args=[self.article.id, "is_favorite"]
+            "article-state-toggle", args=[self.article.id, "is_read_later"]
         )
 
         response = self.client.post(toggle_url, data={"q": "django", "page": "3"})
@@ -337,10 +359,10 @@ class ArticleUserStateTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response["Location"],
-            f"{reverse('rss-dashboard')}?q=django&page=3",
+            f"{reverse('feeds-page')}?q=django&page=3",
         )
         state = ArticleUserState.objects.get(user=self.user, article=self.article)
-        self.assertEqual(state.is_favorite, True)
+        self.assertEqual(state.is_read_later, True)
 
     def test_bookmark_pin_toggle_updates_bookmark_state(self):
         self.client.force_login(self.user)
@@ -363,7 +385,7 @@ class ArticleUserStateTests(TestCase):
         state.refresh_from_db()
         self.assertEqual(state.is_pinned, False)
 
-    def test_homepage_shows_pinned_bookmarks_for_authenticated_user(self):
+    def test_homepage_shows_dashboard_for_authenticated_user(self):
         self.client.force_login(self.user)
         bookmark = Bookmark.objects.create(
             user=self.user,
@@ -381,7 +403,7 @@ class ArticleUserStateTests(TestCase):
         response = self.client.get(reverse("homepage"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Pinned bookmark")
+        self.assertContains(response, "Overview")
 
     def test_web_toggle_anonymous_does_not_create_state_and_shows_error(self):
         toggle_url = reverse(
@@ -813,7 +835,7 @@ class FeedArticlesViewTests(TestCase):
         self.client.force_login(self.user)
 
         ArticleUserState.objects.create(
-            user=self.user, article=self.article_a1, is_favorite=True
+            user=self.user, article=self.article_a1, is_read_later=True
         )
 
         response = self.client.get(reverse("feed-articles", args=[self.feed_a.id]))
@@ -821,7 +843,7 @@ class FeedArticlesViewTests(TestCase):
         # Template renders label and count in separate elements
         content = response.content.decode()
         self.assertIn("All", content)
-        self.assertIn("Favorites", content)
+        self.assertIn("Read Later", content)
 
     def test_feeds_page_includes_state_filters_and_sort_controls(self):
         self.client.force_login(self.user)
@@ -831,7 +853,6 @@ class FeedArticlesViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Unread")
         self.assertContains(response, "Read Later")
-        self.assertContains(response, "Favorites")
         self.assertContains(response, "Latest")
         self.assertContains(response, "Oldest")
         self.assertContains(response, "Smart")
@@ -1103,7 +1124,6 @@ class EnhancedSearchAndRankingTests(TestCase):
         ArticleUserState.objects.create(
             user=self.user,
             article=favorite_unread,
-            is_favorite=True,
             is_read_later=True,
         )
 

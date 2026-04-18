@@ -1,14 +1,9 @@
-{# Main page navigation - Home / Overview / Feeds / Bookmark / Saved #}
+{# Main page navigation - Home / Feeds / Bookmark #}
 <div class="flex items-center gap-1">
     <a href="{% url 'homepage' %}"
        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-              {% if current_page == 'homepage' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
-        🏠 Home
-    </a>
-    <a href="{% url 'overview' %}"
-       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
               {% if current_page == 'overview' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
-        📊 Overview
+        🏠 Home
     </a>
     <a href="{% url 'feeds-page' %}"
        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
@@ -19,10 +14,5 @@
        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
               {% if current_page == 'bookmarks' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
         🔖 Bookmarks
-    </a>
-    <a href="{% url 'saved' %}"
-       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-              {% if current_page == 'saved' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
-        💾 Saved
     </a>
 </div>

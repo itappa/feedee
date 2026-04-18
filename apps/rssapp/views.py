@@ -13,7 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -331,7 +331,6 @@ class ArticleUserStateView(APIView):
             return Response(
                 {
                     "article": article.id,
-                    "is_favorite": False,
                     "is_read_later": False,
                     "is_read": False,
                     "updated_at": None,
@@ -559,7 +558,7 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
 
     query = request.GET.get("q", "").strip()
     state_filter = request.GET.get("state", "all").strip()
-    if state_filter not in {"all", "unread", "read-later", "favorites"}:
+    if state_filter not in {"all", "unread", "read-later"}:
         state_filter = "all"
 
     articles_qs = base_qs
@@ -571,7 +570,6 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
         )
 
     all_count = base_qs.count()
-    favorites_count = 0
     read_later_count = 0
     unread_count = all_count
     read_count = 0
@@ -580,15 +578,10 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
         user_states = ArticleUserState.objects.filter(
             user=request.user, article__in=base_qs
         )
-        favorites_count = user_states.filter(is_favorite=True).count()
         read_later_count = user_states.filter(is_read_later=True).count()
         read_count = user_states.filter(is_read=True).count()
 
-        if state_filter == "favorites":
-            articles_qs = articles_qs.filter(
-                user_states__user=request.user, user_states__is_favorite=True
-            )
-        elif state_filter == "read-later":
+        if state_filter == "read-later":
             articles_qs = articles_qs.filter(
                 user_states__user=request.user, user_states__is_read_later=True
             )
@@ -604,7 +597,7 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
                 user_states__user=request.user, user_states__is_read=True
             ).count()
         )
-    elif state_filter in {"favorites", "read-later"}:
+    elif state_filter == "read-later":
         articles_qs = articles_qs.none()
 
     if sort_mode == "smart" and request.user.is_authenticated:
@@ -614,26 +607,22 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
         articles_qs = (
             articles_qs.annotate(
                 state_is_read=Exists(state_base.filter(is_read=True)),
-                state_is_favorite=Exists(state_base.filter(is_favorite=True)),
                 state_is_read_later=Exists(state_base.filter(is_read_later=True)),
             )
             .annotate(
                 smart_bucket=Case(
-                    When(state_is_read=False, state_is_favorite=True, then=Value(0)),
                     When(
                         state_is_read=False,
                         state_is_read_later=True,
-                        then=Value(1),
+                        then=Value(0),
                     ),
-                    When(state_is_read=False, then=Value(2)),
-                    When(state_is_favorite=True, then=Value(3)),
-                    default=Value(4),
+                    When(state_is_read=False, then=Value(1)),
+                    default=Value(2),
                     output_field=IntegerField(),
                 )
             )
             .order_by(
                 "smart_bucket",
-                "-state_is_favorite",
                 "-state_is_read_later",
                 "-published_at",
                 "-created_at",
@@ -676,7 +665,6 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
                 "image_url": article.image_url or "",
                 "published_at": article.published_at,
                 "created_at": article.created_at,
-                "is_favorite": state.is_favorite if state else False,
                 "is_read_later": state.is_read_later if state else False,
                 "is_read": state.is_read if state else False,
             }
@@ -698,7 +686,6 @@ def _build_article_list_context(request, base_qs, feed_name_fn=None):
             {"key": "all", "label": "All", "count": all_count},
             {"key": "unread", "label": "Unread", "count": unread_count},
             {"key": "read-later", "label": "Read Later", "count": read_later_count},
-            {"key": "favorites", "label": "Favorites", "count": favorites_count},
         ],
         "read_count": read_count,
         "display_mode": display_mode,
@@ -719,77 +706,8 @@ def dashboard_view(request):
 
 
 def homepage_view(request):
-    base_qs = Article.objects.filter(feed__isnull=False).select_related("feed")
-    if request.user.is_authenticated:
-        base_qs = base_qs.exclude(
-            user_states__user=request.user, user_states__is_read=True
-        )
-
-    context = _build_article_list_context(request, base_qs)
-    context["current_page"] = "homepage"
-    context["news_limit"] = 20
-
-    if request.user.is_authenticated:
-        total_unread = (
-            Article.objects.filter(feed__isnull=False)
-            .exclude(user_states__user=request.user, user_states__is_read=True)
-            .count()
-        )
-        pinned_states = (
-            BookmarkUserState.objects.filter(user=request.user, is_pinned=True)
-            .select_related("bookmark", "bookmark__source_article")
-            .order_by("-updated_at")[:6]
-        )
-        pinned_bookmarks = []
-        for state in pinned_states:
-            bm = state.bookmark
-            has_source_article = bool(bm.source_article_id)
-            primary_url = (
-                reverse("article-reader", args=[bm.source_article_id])
-                if has_source_article
-                else bm.url
-            )
-            pinned_bookmarks.append(
-                {
-                    "id": bm.id,
-                    "title": bm.title,
-                    "description": bm.description,
-                    "url": bm.url,
-                    "primary_url": primary_url,
-                    "open_in_new_tab": not has_source_article,
-                    "category": bm.category,
-                    "domain": urlparse(bm.url).netloc,
-                    "is_pinned": True,
-                }
-            )
-
-        unread_by_feed = (
-            Article.objects.filter(feed__isnull=False)
-            .exclude(user_states__user=request.user, user_states__is_read=True)
-            .values("feed_id", "feed__name")
-            .annotate(unread_count=Count("id"))
-            .order_by("-unread_count", "feed__name")[:5]
-        )
-
-        context.update(
-            {
-                "total_unread": total_unread,
-                "pinned_bookmarks": pinned_bookmarks,
-                "unread_by_feed": unread_by_feed,
-                "is_home_authenticated": True,
-            }
-        )
-    else:
-        context.update(
-            {
-                "total_unread": Article.objects.filter(feed__isnull=False).count(),
-                "pinned_bookmarks": [],
-                "unread_by_feed": [],
-                "is_home_authenticated": False,
-            }
-        )
-
-    return render(request, "dashboard/homepage.html", context)
+    """Legacy endpoint for old homepage template."""
+    return redirect("homepage")
 
 
 @login_required
@@ -987,7 +905,6 @@ def reader_view(request, article_id):
         "rss/reader_view.html",
         {
             "article": article,
-            "is_favorite": state.is_favorite if state else False,
             "is_read_later": state.is_read_later if state else False,
             "is_read": state.is_read if state else False,
             "prev_article": prev_article,
@@ -1043,7 +960,7 @@ def article_state_toggle_view(request, article_id, state_field):
         messages.error(request, "Please log in to update article state.")
         return redirect(redirect_url)
 
-    allowed_fields = {"is_favorite", "is_read_later", "is_read"}
+    allowed_fields = {"is_read_later", "is_read"}
     if state_field not in allowed_fields:
         messages.error(request, "Invalid state action.")
         return redirect(redirect_url)
@@ -1072,7 +989,7 @@ def bookmark_state_toggle_view(request, bookmark_id, state_field):
         messages.error(request, "Please log in to update bookmark state.")
         return redirect(redirect_url)
 
-    allowed_fields = {"is_favorite", "is_read_later", "is_read", "is_pinned"}
+    allowed_fields = {"is_read_later", "is_read", "is_pinned"}
     if state_field not in allowed_fields:
         messages.error(request, "Invalid bookmark state action.")
         return redirect(redirect_url)
@@ -1406,7 +1323,6 @@ def bookmark_list_view(request):
                 "created_at": bm.created_at,
                 "source_article_id": bm.source_article_id,
                 "is_pinned": state.is_pinned if state else False,
-                "is_favorite": state.is_favorite if state else False,
                 "is_read_later": state.is_read_later if state else False,
                 "is_read": state.is_read if state else False,
             }
@@ -1769,14 +1685,8 @@ def _get_read_later_articles(user):
 
 
 def _get_favorites_articles(user):
-    """Get articles marked as favorite"""
-    return (
-        ArticleUserState.objects.filter(
-            user=user, article__isnull=False, is_favorite=True
-        )
-        .select_related("article__feed")
-        .order_by("-article__published_at")
-    )
+    """Deprecated: favorites removed. Returns empty queryset."""
+    return ArticleUserState.objects.none()
 
 
 def _get_dashboard_statistics(user):
@@ -1789,9 +1699,6 @@ def _get_dashboard_statistics(user):
     read_later_count = ArticleUserState.objects.filter(
         user=user, is_read_later=True
     ).count()
-    favorites_count = ArticleUserState.objects.filter(
-        user=user, is_favorite=True
-    ).count()
 
     return {
         "feed_count": feed_count,
@@ -1799,7 +1706,6 @@ def _get_dashboard_statistics(user):
         "bookmark_category_count": bookmark_category_count,
         "unread_articles": unread_articles,
         "read_later_count": read_later_count,
-        "favorites_count": favorites_count,
     }
 
 
@@ -1945,7 +1851,6 @@ def bookmarks_page_view(request):
                 "created_at": bm.created_at,
                 "source_article_id": bm.source_article_id,
                 "is_pinned": state.is_pinned if state else False,
-                "is_favorite": state.is_favorite if state else False,
                 "is_read_later": state.is_read_later if state else False,
                 "is_read": state.is_read if state else False,
             }
@@ -2001,44 +1906,38 @@ def bookmarks_page_view(request):
 
 @login_required
 def read_later_view(request):
-    """Legacy endpoint: redirect to unified saved page."""
+    """Legacy endpoint: redirect read-later to feeds filter."""
     params = request.GET.copy()
     params["state"] = "read-later"
     query = params.urlencode()
-    return redirect(f"{reverse('saved')}?{query}" if query else reverse("saved"))
+    return redirect(
+        f"{reverse('feeds-page')}?{query}" if query else reverse("feeds-page")
+    )
 
 
 @login_required
 def favorites_view(request):
-    """Legacy endpoint: redirect to unified saved page."""
-    params = request.GET.copy()
-    params["state"] = "favorites"
-    query = params.urlencode()
-    return redirect(f"{reverse('saved')}?{query}" if query else reverse("saved"))
+    """Favorites removed. Redirect to read-later feed filter."""
+    return redirect(f"{reverse('feeds-page')}?state=read-later")
 
 
 @login_required
 def saved_view(request):
-    """Unified saved items page for Read Later and Favorites."""
-    requested_state = (request.GET.get("state") or "read-later").strip()
-    if requested_state not in {"read-later", "favorites"}:
-        params = request.GET.copy()
-        params["state"] = "read-later"
-        return redirect(f"{reverse('saved')}?{params.urlencode()}")
-
+    """Read-later queue: RSS articles + bookmarks marked as read_later."""
     base_qs = Article.objects.filter(feed__isnull=False).select_related("feed")
+    # Inject state=read-later so _build_article_list_context filters correctly
+    orig_get = request.GET
+    request.GET = request.GET.copy()
+    request.GET["state"] = "read-later"
     context = _build_article_list_context(request, base_qs)
-    state_filter = requested_state
+    request.GET = orig_get
 
-    bookmark_states = BookmarkUserState.objects.filter(user=request.user)
-    if state_filter == "read-later":
-        bookmark_states = bookmark_states.filter(is_read_later=True)
-    else:
-        bookmark_states = bookmark_states.filter(is_favorite=True)
-
+    bookmark_states_rl = BookmarkUserState.objects.filter(
+        user=request.user, is_read_later=True
+    )
     bookmarks_qs = Bookmark.objects.filter(
         user=request.user,
-        id__in=bookmark_states.values("bookmark_id"),
+        id__in=bookmark_states_rl.values("bookmark_id"),
     ).prefetch_related("tags")
 
     query = (request.GET.get("q") or "").strip()
@@ -2055,14 +1954,7 @@ def saved_view(request):
     else:
         bookmarks_qs = bookmarks_qs.order_by("-created_at")
 
-    bookmark_read_later_count = BookmarkUserState.objects.filter(
-        user=request.user,
-        is_read_later=True,
-    ).count()
-    bookmark_favorites_count = BookmarkUserState.objects.filter(
-        user=request.user,
-        is_favorite=True,
-    ).count()
+    bookmark_read_later_count = bookmark_states_rl.count()
 
     bookmark_cards = []
     for bm in bookmarks_qs[:20]:
@@ -2092,31 +1984,18 @@ def saved_view(request):
 
     counts = {item["key"]: item["count"] for item in context["state_filter_links"]}
     total_read_later = counts.get("read-later", 0) + bookmark_read_later_count
-    total_favorites = counts.get("favorites", 0) + bookmark_favorites_count
-    total_saved = total_read_later + total_favorites
     context.update(
         {
             "current_page": "saved",
-            "saved_state": requested_state,
-            "saved_total": total_saved,
-            "page_title": "Saved",
+            "saved_state": "read-later",
+            "saved_total": total_read_later,
+            "page_title": "Read Later",
             "page_subtitle": (
-                f"{total_saved} item{'s' if total_saved != 1 else ''} in saved lists"
+                f"{total_read_later} item{'s' if total_read_later != 1 else ''} saved for later"
             ),
             "bookmark_cards": bookmark_cards,
             "bookmark_saved_count": bookmarks_qs.count(),
-            "state_filter_links": [
-                {
-                    "key": "read-later",
-                    "label": "Read Later",
-                    "count": total_read_later,
-                },
-                {
-                    "key": "favorites",
-                    "label": "Favorites",
-                    "count": total_favorites,
-                },
-            ],
+            "state_filter_links": [],
             "sort_links": [
                 {"key": "latest", "label": "Latest"},
                 {"key": "oldest", "label": "Oldest"},
@@ -2124,3 +2003,54 @@ def saved_view(request):
         }
     )
     return render(request, "shared/saved.html", context)
+
+
+# ── Article → Bookmark one-click save ──────────────────────
+
+
+@login_required
+def save_article_as_bookmark_view(request, article_id):
+    """One-click save: convert an RSS article into a permanent Bookmark."""
+    if request.method != "POST":
+        return redirect("feeds-page")
+
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    article = get_object_or_404(Article, id=article_id)
+
+    # Idempotent: return existing bookmark if URL already saved
+    existing = Bookmark.objects.filter(user=request.user, url=article.link).first()
+    if existing:
+        if is_ajax:
+            return JsonResponse(
+                {"ok": True, "bookmark_id": existing.id, "already_saved": True}
+            )
+        messages.info(request, "Already saved to bookmarks.")
+        return redirect("bookmark-list")
+
+    bookmark = Bookmark(
+        user=request.user,
+        url=article.link,
+        title=article.title,
+        description=(article.summary or ""),
+        thumbnail_url=(article.image_url or ""),
+        source_article=article,
+    )
+    try:
+        bookmark.save()
+    except IntegrityError:
+        # Race condition: another request saved it first
+        existing = Bookmark.objects.filter(user=request.user, url=article.link).first()
+        if is_ajax:
+            return JsonResponse(
+                {"ok": True, "bookmark_id": existing.id if existing else None, "already_saved": True}
+            )
+        messages.info(request, "Already saved to bookmarks.")
+        return redirect("bookmark-list")
+
+    if is_ajax:
+        return JsonResponse({"ok": True, "bookmark_id": bookmark.id, "already_saved": False})
+
+    messages.success(request, "Saved to bookmarks.")
+    return redirect("bookmark-list")
+

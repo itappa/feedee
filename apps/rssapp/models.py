@@ -186,7 +186,6 @@ class ArticleUserState(models.Model):
     article = models.ForeignKey(
         Article, on_delete=models.CASCADE, related_name="user_states"
     )
-    is_favorite = models.BooleanField(default=False)
     is_read_later = models.BooleanField(default=False)
     is_read = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
@@ -200,7 +199,6 @@ class ArticleUserState(models.Model):
         indexes = [
             models.Index(fields=["user", "updated_at"]),
             models.Index(fields=["user", "is_read_later"]),
-            models.Index(fields=["user", "is_favorite"]),
         ]
 
     def __str__(self) -> str:
@@ -220,7 +218,6 @@ class BookmarkUserState(models.Model):
     )
     # is_pinned is distinct from favorite: pinned is for homepage placement.
     is_pinned = models.BooleanField(default=False, db_index=True)
-    is_favorite = models.BooleanField(default=False)
     is_read_later = models.BooleanField(default=False)
     is_read = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
@@ -234,7 +231,6 @@ class BookmarkUserState(models.Model):
         indexes = [
             models.Index(fields=["user", "updated_at"]),
             models.Index(fields=["user", "is_read_later"]),
-            models.Index(fields=["user", "is_favorite"]),
         ]
 
     def __str__(self) -> str:

@@ -22,12 +22,11 @@ class ArticleUserStateAdmin(admin.ModelAdmin):
         "id",
         "user",
         "article",
-        "is_favorite",
         "is_read_later",
         "is_read",
         "updated_at",
     )
-    list_filter = ("is_favorite", "is_read_later", "is_read", "updated_at")
+    list_filter = ("is_read_later", "is_read", "updated_at")
 
 
 @admin.register(Tag)

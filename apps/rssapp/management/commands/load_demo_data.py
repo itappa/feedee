@@ -430,16 +430,14 @@ class Command(BaseCommand):
         states_created = 0
         for i, article in enumerate(article_objs):
             is_read = i % 3 == 0  # every 3rd article read
-            is_fav = i % 5 == 0  # every 5th article favorited
             is_read_later = i % 4 == 1  # every 4th article read-later
 
-            if is_read or is_fav or is_read_later:
+            if is_read or is_read_later:
                 ArticleUserState.objects.update_or_create(
                     user=user,
                     article=article,
                     defaults={
                         "is_read": is_read,
-                        "is_favorite": is_fav,
                         "is_read_later": is_read_later,
                     },
                 )

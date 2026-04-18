@@ -26,7 +26,7 @@ import "../css/main.css";
   var toggle = document.getElementById("sidebar-toggle");
   var panel = document.getElementById("sidebar-panel");
   var overlay = document.getElementById("sidebar-overlay");
-  if (!toggle) return;
+  if (!toggle || !panel || !overlay) return;
   function open() {
     panel.classList.add("open");
     overlay.classList.add("open");
@@ -115,10 +115,6 @@ import "../css/main.css";
 
         // Update button styling
         var styles = {
-          is_favorite: {
-            active: "text-amber-500",
-            inactive: "text-gray-400 hover:text-amber-500",
-          },
           is_read_later: {
             active: "text-sky-500",
             inactive: "text-gray-400 hover:text-sky-500",
@@ -156,6 +152,60 @@ import "../css/main.css";
       })
       .catch(function () {
         // Fallback: reload on error
+        window.location.reload();
+      });
+  });
+})();
+
+// ── Save article to bookmarks (one-click) ───────────────
+(function () {
+  var csrf =
+    document.querySelector("meta[name='csrf-token']") ||
+    document.querySelector("input[name='csrfmiddlewaretoken']");
+  var csrfToken = csrf ? csrf.content || csrf.value : "";
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".save-to-bookmark");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    var saveUrl = btn.dataset.saveUrl;
+    if (!saveUrl) return;
+
+    var alreadySaved = btn.dataset.saved === "true";
+    if (alreadySaved) {
+      // Already saved — navigate to bookmarks
+      window.location.href = "/bookmarks/";
+      return;
+    }
+
+    btn.disabled = true;
+
+    fetch(saveUrl, {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": csrfToken,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Failed");
+        return res.json();
+      })
+      .then(function (data) {
+        if (data.ok) {
+          btn.dataset.saved = "true";
+          btn.classList.remove("text-gray-400", "hover:text-violet-500", "opacity-0", "group-hover:opacity-100");
+          btn.classList.add("text-violet-500");
+          btn.title = "Already saved to bookmarks";
+          var svg = btn.querySelector("svg");
+          if (svg) svg.setAttribute("fill", "currentColor");
+        }
+        btn.disabled = false;
+      })
+      .catch(function () {
+        btn.disabled = false;
         window.location.reload();
       });
   });

@@ -60,6 +60,16 @@ apps/rssapp/         メインアプリケーション
   api_urls.py        API URL ルーティング
   utils.py           URL 正規化・ハッシュ生成・メタデータ取得
   context_processors.py  サイドバー用コンテキスト
+apps/rss_service/    RSS 機能の分離サービス層（段階移行）
+  public_urls.py     既存URL互換を保つ RSS ルーティング
+  public_api_urls.py 既存API互換を保つ RSS API ルーティング
+  urls.py            名前空間付き RSS ルーティング（/rss/*）
+  api_urls.py        名前空間付き RSS API ルーティング（/api/rss/*）
+apps/bookmark_service/ Bookmark 機能の分離サービス層（段階移行）
+  public_urls.py       既存URL互換を保つ Bookmark ルーティング
+  public_api_urls.py   既存API互換を保つ Bookmark API ルーティング
+  urls.py              名前空間付き Bookmark ルーティング（/bookmark-service/*）
+  api_urls.py          名前空間付き Bookmark API ルーティング（/api/bookmarks/*）
 templates/           HTML テンプレート
   base.html          レイアウト（サイドバー・ヘッダー）
   rss/               RSS 関連画面
@@ -133,6 +143,16 @@ make infra-down  # 停止
 | `GET/PATCH` | `/api/articles/<id>/state/` | 記事のユーザー状態取得・更新 |
 | `POST` | `/api/bookmarks/fetch-metadata/` | URL メタデータ取得 |
 
+### 分離サービス用 API エンドポイント（新規）
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| `GET` | `/api/rss/feeds/` | RSS サービス名前空間でのフィード一覧 |
+| `POST` | `/api/rss/articles/ingest/` | RSS サービス名前空間での記事取り込み |
+| `GET/PATCH` | `/api/rss/articles/<id>/state/` | RSS サービス名前空間での記事状態 |
+| `POST` | `/api/bookmarks/bookmarks/fetch-metadata/` | Bookmark サービス名前空間でのメタデータ取得 |
+| `POST` | `/api/bookmarks/bookmarklet/create/` | Bookmark サービス名前空間でのブックマークレット登録 |
+
 ## Web ページ
 
 | パス | 説明 |
@@ -145,6 +165,21 @@ make infra-down  # 停止
 | `/settings/` | 設定（Feeds タブ） |
 | `/settings/tags/` | 設定（Tags タブ） |
 | `/settings/account/` | 設定（Account タブ） |
+
+### 分離サービス用 Web ルート（新規）
+
+| パス | 説明 |
+|------|------|
+| `/rss/feeds/` | RSS サービス名前空間での記事一覧 |
+| `/rss/feeds/<id>/` | RSS サービス名前空間でのフィード記事 |
+| `/rss/articles/<id>/reader/` | RSS サービス名前空間での記事リーダー |
+| `/bookmark-service/bookmarks/` | Bookmark サービス名前空間でのブックマーク一覧 |
+
+## サービス分離の現状
+
+- 既存ルート（`/feeds/*`, `/bookmarks/*`, `/api/*`）は互換維持のため有効です。
+- 既存ルートは内部的に `apps/rss_service` と `apps/bookmark_service` のルーティングへ委譲されています。
+- これにより、機能別 app を別 Django プロジェクトに移植しやすい構造へ移行済みです。
 
 ## 環境変数
 
