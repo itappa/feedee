@@ -2043,14 +2043,19 @@ def save_article_as_bookmark_view(request, article_id):
         existing = Bookmark.objects.filter(user=request.user, url=article.link).first()
         if is_ajax:
             return JsonResponse(
-                {"ok": True, "bookmark_id": existing.id if existing else None, "already_saved": True}
+                {
+                    "ok": True,
+                    "bookmark_id": existing.id if existing else None,
+                    "already_saved": True,
+                }
             )
         messages.info(request, "Already saved to bookmarks.")
         return redirect("bookmark-list")
 
     if is_ajax:
-        return JsonResponse({"ok": True, "bookmark_id": bookmark.id, "already_saved": False})
+        return JsonResponse(
+            {"ok": True, "bookmark_id": bookmark.id, "already_saved": False}
+        )
 
     messages.success(request, "Saved to bookmarks.")
     return redirect("bookmark-list")
-
