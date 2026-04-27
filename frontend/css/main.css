@@ -11,6 +11,38 @@ body {
   overflow-x: hidden;
 }
 
+/* ── 2-Pane Layout (Sidebar + Main) ──────────────────── */
+@media (max-width: 767px) {
+  #sidebar-panel {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  #sidebar-panel.open {
+    transform: translateX(0);
+  }
+  #sidebar-overlay {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  #sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #mobile-menu-btn {
+    display: inline-flex;
+  }
+}
+
+@media (min-width: 768px) {
+  #mobile-menu-btn {
+    display: none !important;
+  }
+  #sidebar-overlay {
+    display: none !important;
+  }
+}
+
 /* ── Sidebar ──────────────────────────────────────────── */
 .sidebar-link {
   transition: background 0.12s, color 0.12s;
@@ -67,6 +99,29 @@ body {
 
 #app-switcher-dropdown .data-app-option .ml-auto {
   margin-left: auto;
+}
+
+/* ── User Menu (Sidebar Footer) ──────────────────────── */
+#user-menu-dropdown {
+  min-width: 14rem;
+}
+
+#user-menu-dropdown a,
+#user-menu-dropdown button {
+  font-size: 0.875rem;
+  color: #374151;
+  transition: background 0.12s;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+}
+
+#user-menu-dropdown a:hover,
+#user-menu-dropdown button:hover {
+  background-color: #f3f4f6;
 }
 @media (max-width: 767px) {
   #sidebar-panel {

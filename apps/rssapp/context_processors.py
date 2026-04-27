@@ -12,7 +12,13 @@ def _detect_active_app(request: HttpRequest) -> str:
     path = request.path
     if "bookmark" in path:
         return "bookmark"
-    if "feeds" in path or "articles" in path or "overview" in path or "read-later" in path or "favorites" in path:
+    if (
+        "feeds" in path
+        or "articles" in path
+        or "overview" in path
+        or "read-later" in path
+        or "favorites" in path
+    ):
         return "rss"
     return "shared"
 

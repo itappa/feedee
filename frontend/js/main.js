@@ -23,10 +23,11 @@ import "../css/main.css";
 
 // ── Sidebar toggle (mobile) ──────────────────────────────
 (function () {
-  var toggle = document.getElementById("sidebar-toggle");
   var panel = document.getElementById("sidebar-panel");
   var overlay = document.getElementById("sidebar-overlay");
-  if (!toggle || !panel || !overlay) return;
+  var closeBtn = document.getElementById("sidebar-close-btn");
+  if (!panel || !overlay || !closeBtn) return;
+
   function open() {
     panel.classList.add("open");
     overlay.classList.add("open");
@@ -35,9 +36,20 @@ import "../css/main.css";
     panel.classList.remove("open");
     overlay.classList.remove("open");
   }
-  toggle.addEventListener("click", function () {
+
+  // Mobile menu button (hamburger)
+  var mobileMenuBtn = document.createElement("button");
+  mobileMenuBtn.id = "mobile-menu-btn";
+  mobileMenuBtn.className = "md:hidden fixed left-4 top-4 z-50 p-1.5 rounded-lg hover:bg-gray-100 text-gray-600";
+  mobileMenuBtn.setAttribute("aria-label", "Toggle sidebar");
+  mobileMenuBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>';
+  document.body.insertBefore(mobileMenuBtn, document.body.firstChild);
+
+  mobileMenuBtn.addEventListener("click", function () {
     panel.classList.contains("open") ? close() : open();
   });
+
+  closeBtn.addEventListener("click", close);
   overlay.addEventListener("click", close);
 })();
 
@@ -61,18 +73,7 @@ import "../css/main.css";
 
 // ── Mobile search toggle ────────────────────────────────
 (function () {
-  var btn = document.getElementById("mobile-search-toggle");
-  var bar = document.getElementById("mobile-search-bar");
-  if (!btn || !bar) return;
-
-  btn.addEventListener("click", function () {
-    var visible = bar.style.display === "block";
-    bar.style.display = visible ? "none" : "block";
-    if (!visible) {
-      var input = bar.querySelector("input[name='q']");
-      if (input) input.focus();
-    }
-  });
+  // Removed - mobile search bar is now in sidebar
 })();
 
 // ── Inline article state toggle (fetch API) ─────────────
