@@ -96,11 +96,6 @@
                 {% endif %}
                 <div class="mt-2 flex items-center justify-between gap-2">
                     <p class="text-[11px] text-gray-400 truncate">{{ bm.domain }}</p>
-                    {% if bm.source_article_id %}
-                    <a href="{{ bm.url }}" target="_blank" rel="noopener noreferrer" class="text-[11px] font-medium text-brand-600 hover:text-brand-700 whitespace-nowrap">
-                        Original ↗
-                    </a>
-                    {% endif %}
                 </div>
                 {% if bm.category %}
                 <div class="mt-2 py-1">

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Feed settings – Feedee{% endblock %}
+{% block title %}Feed Settings – Feedee{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -12,23 +12,29 @@
 
 {% block content %}
 <div class="max-w-3xl mx-auto px-4 md:px-8 py-6">
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <h1 class="text-xl font-semibold text-gray-900">Feed settings</h1>
-            <p class="text-sm text-gray-500 mt-0.5">{{ feeds|length }} feed{{ feeds|length|pluralize }}</p>
-        </div>
+    <div class="mb-6">
+        <h1 class="text-xl font-semibold text-gray-900">Feed Settings</h1>
+        <p class="text-sm text-gray-500 mt-1">Manage subscriptions, feed groups, and OPML import/export.</p>
     </div>
 
-    {# ── Add Feed ───────────────────────────────────── #}
-    <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-5 mb-6">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-gray-500">{{ feeds|length }} feed{{ feeds|length|pluralize }}</p>
+        <a href="{% url 'feeds-opml-export' %}"
+           class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+            Export OPML
+        </a>
+    </div>
+
+    <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-5 mb-6 space-y-4">
         <form method="post" class="flex flex-wrap items-end gap-3">
             {% csrf_token %}
+            <input type="hidden" name="form_action" value="add_feed">
             <div class="flex-1 min-w-[160px]">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Name</label>
                 {{ feed_form.name }}
             </div>
             <div class="flex-[2] min-w-[200px]">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Feed URL</label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Website or feed URL</label>
                 {{ feed_form.url }}
             </div>
             <div class="min-w-[120px]">
@@ -40,17 +46,29 @@
                 Add feed
             </button>
         </form>
+
+        <div class="border-t border-gray-100 pt-4">
+            <p class="text-xs text-gray-500 mb-3">Paste either a homepage URL or a direct RSS/Atom URL. Feedee will try to discover the feed automatically.</p>
+            <form method="post" action="{% url 'feeds-opml-import' %}" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
+                {% csrf_token %}
+                <div class="flex-1 min-w-[220px]">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Import from OPML</label>
+                    <input type="file" name="opml_file" accept=".opml,.xml,text/xml,application/xml"
+                           class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-2 file:py-1 file:text-brand-700">
+                </div>
+                <button class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+                    Import OPML
+                </button>
+            </form>
+        </div>
     </section>
 
-    {# ── Feed List ──────────────────────────────────── #}
     {% if feeds %}
     <div class="space-y-2" id="feed-list" data-reorder-url="{% url 'feed-reorder' %}">
         {% for row in feed_rows %}
         {% with feed=row.feed form=row.form %}
         <div class="feed-card rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden transition-all hover:border-gray-300"
              draggable="true" data-feed-id="{{ feed.id }}">
-
-            {# ── Compact summary row ── #}
             <div class="feed-summary flex items-center gap-3 px-4 py-3 cursor-pointer" onclick="this.closest('.feed-card').classList.toggle('editing')">
                 <svg class="w-4 h-4 text-gray-300 cursor-grab flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 8h16M4 16h16"/></svg>
                 <div class="w-2 h-2 rounded-full flex-shrink-0 {% if feed.is_active %}bg-emerald-400{% else %}bg-gray-300{% endif %}"></div>
@@ -65,7 +83,6 @@
                 </div>
             </div>
 
-            {# ── Expanded edit form ── #}
             <div class="feed-edit border-t border-gray-100 bg-gray-50/50 px-4 py-4">
                 <form method="post" action="{% url 'feed-update' feed.id %}">
                     {% csrf_token %}
@@ -122,7 +139,6 @@
         </button>
         <span id="order-status" class="text-sm text-gray-500"></span>
     </div>
-
     {% else %}
     <div class="rounded-xl border-2 border-dashed border-gray-200 bg-white/50 p-12 text-center">
         <svg class="w-12 h-12 mx-auto text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5a17.92 17.92 0 01-8.716-2.247m0 0A8.966 8.966 0 013 12c0-1.777.515-3.434 1.404-4.83"/></svg>
@@ -167,7 +183,7 @@
 
     btn && btn.addEventListener("click", async function() {
         var feedIds = rows().map(function(r) { return Number(r.dataset.feedId); });
-        status.textContent = "Saving\u2026";
+        status.textContent = "Saving...";
         btn.disabled = true;
         try {
             var res = await fetch(list.dataset.reorderUrl, {

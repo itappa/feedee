@@ -7,6 +7,9 @@
     .feed-card .feed-edit { display: none; }
     .feed-card.editing .feed-edit { display: block; }
     .feed-card.editing .feed-summary { display: none; }
+    .category-card .category-edit { display: none; }
+    .category-card.editing .category-edit { display: block; }
+    .category-card.editing .category-summary { display: none; }
     .tag-card .tag-edit { display: none; }
     .tag-card.editing .tag-edit { display: block; }
     .tag-card.editing .tag-summary { display: none; }
@@ -32,6 +35,12 @@
                   {% if active_tab == 'tags' %}border-brand-600 text-brand-700{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
             <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
             Tags
+        </a>
+        <a href="{% url 'settings-categories' %}"
+           class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px
+                  {% if active_tab == 'categories' %}border-brand-600 text-brand-700{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
+            <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 7h18M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+            Categories
         </a>
         <a href="{% url 'settings-account' %}"
            class="px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px
@@ -68,7 +77,7 @@
                 {{ feed_form.url }}
             </div>
             <div class="min-w-[120px]">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Group</label>
                 {{ feed_form.category }}
             </div>
             <button class="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-5 py-2.5 transition-colors shadow-sm whitespace-nowrap">
@@ -124,7 +133,7 @@
                             {{ form.name }}
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Group</label>
                             {{ form.category }}
                         </div>
                         <div class="sm:col-span-2">
@@ -177,6 +186,104 @@
         <svg class="w-12 h-12 mx-auto text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5a17.92 17.92 0 01-8.716-2.247m0 0A8.966 8.966 0 013 12c0-1.777.515-3.434 1.404-4.83"/></svg>
         <p class="mt-3 text-sm font-medium text-gray-500">No feeds yet</p>
         <p class="text-xs text-gray-400 mt-1">Add your first RSS feed using the form above</p>
+    </div>
+    {% endif %}
+
+    {# ══════════════════════════════════════════════════ #}
+    {# ── Categories Tab ─────────────────────────────── #}
+    {# ══════════════════════════════════════════════════ #}
+    {% elif active_tab == "categories" %}
+
+    <p class="text-sm text-gray-500 mb-4">{{ categories|length }} categor{{ categories|length|pluralize:"y,ies" }}</p>
+
+    <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-5 mb-6">
+        <form method="post" class="flex flex-wrap items-end gap-3">
+            {% csrf_token %}
+            <div class="flex-1 min-w-[160px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                {{ category_form.name }}
+            </div>
+            <div class="min-w-[80px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Color</label>
+                {{ category_form.color }}
+            </div>
+            <button class="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-5 py-2.5 transition-colors shadow-sm whitespace-nowrap">
+                <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4v16m8-8H4"/></svg>
+                Add category
+            </button>
+        </form>
+    </section>
+
+    {% if category_rows %}
+    <div class="space-y-2">
+        {% for row in category_rows %}
+        {% with category=row.category form=row.form %}
+        <div class="category-card rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden transition-all hover:border-gray-300">
+
+            <div class="category-summary flex items-center gap-3 px-4 py-3 cursor-pointer" onclick="this.closest('.category-card').classList.toggle('editing')">
+                <span class="w-4 h-4 rounded-full flex-shrink-0" style="background-color: {{ category.color }}"></span>
+                <div class="flex-1 min-w-0">
+                    <span class="text-sm font-medium text-gray-900">{{ category.name }}</span>
+                    {% if category.description %}
+                    <p class="text-xs text-gray-500 mt-0.5">{{ category.description|truncatewords:8 }}</p>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-3 flex-shrink-0 text-xs text-gray-400">
+                    <span class="tabular-nums">{{ category.bookmark_count }} bookmark{{ category.bookmark_count|pluralize }}</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 5l7 7-7 7"/></svg>
+                </div>
+            </div>
+
+            <div class="category-edit border-t border-gray-100 bg-gray-50/50 px-4 py-4">
+                <form method="post" action="{% url 'bookmark-category-update' category.id %}">
+                    {% csrf_token %}
+                    <div class="space-y-3 mb-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                            {{ form.name }}
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                            {{ form.description }}
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Color</label>
+                            {{ form.color }}
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div></div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="this.closest('.category-card').classList.remove('editing')"
+                                    class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit"
+                                    class="rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-4 py-1.5 text-xs font-medium transition-colors shadow-sm">
+                                Save changes
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <form method="post" action="{% url 'bookmark-category-update' category.id %}" data-confirm="Delete category &#34;{{ category.name }}&#34;? Bookmarks will be moved to Uncategorized." data-confirm-danger>
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit" class="text-xs text-rose-500 hover:text-rose-700 font-medium transition-colors">
+                            Delete this category
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="rounded-xl border-2 border-dashed border-gray-200 bg-white/50 p-12 text-center">
+        <svg class="w-12 h-12 mx-auto text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 7h18M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+        <p class="mt-3 text-sm font-medium text-gray-500">No categories yet</p>
+        <p class="text-xs text-gray-400 mt-1">Create your first category using the form above</p>
     </div>
     {% endif %}
 

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 md:px-8 py-6">
     <div class="mb-6">
-        <a href="{% url 'bookmark-list' %}" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 transition-colors">
+        <a href="{% if next_url %}{{ next_url }}{% else %}{% url 'bookmarks-page' %}{% endif %}" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15 19l-7-7 7-7"/></svg>
             Back to bookmarks
         </a>
@@ -15,8 +15,8 @@
     <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-6">
         <form method="post" action="{% if edit_mode %}{% url 'bookmark-edit' bookmark.id %}{% else %}{% url 'bookmark-add' %}{% endif %}">
             {% csrf_token %}
-            {% if source_article_id %}
-                <input type="hidden" name="source_article_id" value="{{ source_article_id }}">
+            {% if next_url %}
+                <input type="hidden" name="next" value="{{ next_url }}">
             {% endif %}
             <input type="hidden" name="thumbnail_url" id="bookmark-thumbnail-url" value="{% if edit_mode %}{{ bookmark.thumbnail_url }}{% endif %}">
 
@@ -74,7 +74,7 @@
             </div>
 
             <div class="mt-6 flex items-center justify-between">
-                <a href="{% url 'bookmark-list' %}" class="text-sm text-gray-500 hover:text-gray-700 font-medium">Cancel</a>
+                <a href="{% if next_url %}{{ next_url }}{% else %}{% url 'bookmarks-page' %}{% endif %}" class="text-sm text-gray-500 hover:text-gray-700 font-medium">Cancel</a>
                 <button type="submit"
                         class="rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 text-sm font-medium transition-colors shadow-sm">
                     {% if edit_mode %}Save changes{% else %}Add bookmark{% endif %}

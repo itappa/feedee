@@ -746,18 +746,17 @@ class BookmarkLinkBehaviorTests(TestCase):
             hash="reader-backed-hash",
         )
 
-    def test_bookmark_from_article_links_to_reader_view(self):
+    def test_bookmark_from_article_keeps_external_link(self):
         Bookmark.objects.create(
             user=self.user,
             url=self.article.link,
             title=self.article.title,
-            source_article=self.article,
         )
 
         response = self.client.get(reverse("bookmark-list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse("article-reader", args=[self.article.id]))
+        self.assertContains(response, f'href="{self.article.link}"')
 
     def test_manual_bookmark_keeps_external_link(self):
         Bookmark.objects.create(
@@ -770,6 +769,13 @@ class BookmarkLinkBehaviorTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'href="https://external.example.com/manual"')
+
+    def test_save_article_as_bookmark_does_not_store_source_article(self):
+        response = self.client.post(reverse("article-save", args=[self.article.id]))
+
+        self.assertEqual(response.status_code, 302)
+        bookmark = Bookmark.objects.get(user=self.user, url=self.article.link)
+        self.assertIsNone(bookmark.source_article)
 
 
 class FeedArticlesViewTests(TestCase):

@@ -408,8 +408,6 @@ class Command(BaseCommand):
 
         bookmark_count = 0
         for bm_data in BOOKMARKS:
-            # find matching article if exists
-            source = Article.objects.filter(link=bm_data["url"]).first()
             bm, created = Bookmark.objects.update_or_create(
                 user=user,
                 url=bm_data["url"],
@@ -417,7 +415,6 @@ class Command(BaseCommand):
                     "title": bm_data["title"],
                     "description": bm_data["description"],
                     "thumbnail_url": bm_data["thumbnail_url"],
-                    "source_article": source,
                 },
             )
             bm.tags.set([tag_objs[t] for t in bm_data["tags"]])

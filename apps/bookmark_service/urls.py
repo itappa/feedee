@@ -8,7 +8,6 @@ from .views import (
     bookmark_delete_view,
     bookmark_edit_view,
     bookmark_from_article_view,
-    bookmark_list_view,
     bookmark_state_toggle_view,
     bookmarklet_view,
     bookmarks_page_view,
@@ -19,7 +18,7 @@ app_name = "bookmark_service"
 
 urlpatterns = [
     path("bookmarks/", bookmarks_page_view, name="bookmarks-page"),
-    path("old-bookmarks/", bookmark_list_view, name="bookmark-list"),
+    path("old-bookmarks/", bookmarks_page_view, name="bookmark-list"),
     path("bookmarks/add/", bookmark_add_view, name="bookmark-add"),
     path("bookmarks/bookmarklet/", bookmarklet_view, name="bookmarklet"),
     path("bookmarks/<int:bookmark_id>/edit/", bookmark_edit_view, name="bookmark-edit"),

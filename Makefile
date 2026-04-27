@@ -1,11 +1,3 @@
-.PHONY: help \
-       dev up down logs build test migrate shell worker \
-       standalone-check-env standalone-up standalone-down standalone-logs standalone-build standalone-migrate standalone-shell \
-       infra-up infra-up-build infra-down \
-       backup backup-dev backup-prod restore-dev restore-prod list-backups \
-       lint fmt clean \
-       fe-install fe-dev fe-build
-
 # -------------------------------------------------------------------
 # Variables
 # -------------------------------------------------------------------
@@ -15,12 +7,31 @@ COMPOSE_INFRA      := docker compose -f compose.infra.yaml
 TIMESTAMP          := $(shell date +%Y%m%d_%H%M%S)
 BACKUP_DIR         := backups
 
+.PHONY: help \
+        dev up down logs build test migrate shell worker \
+        standalone-check-env standalone-up standalone-down standalone-logs standalone-build standalone-migrate standalone-shell \
+        infra-up infra-up-build infra-down \
+        backup backup-dev backup-prod restore-dev restore-prod list-backups \
+        lint fmt clean superuser collectstatic \
+        fe-install fe-dev fe-build
+
+.DEFAULT_GOAL := help
+
 # -------------------------------------------------------------------
 # Help
 # -------------------------------------------------------------------
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Usage: make <target>"
+	@awk 'BEGIN {FS = ":.*?## "} \
+	    /^#  [A-Z]/ { \
+	        label = substr($$0, 4); \
+	        printf "\n\033[1m%s\033[0m\n", label; next \
+	    } \
+	    /^[a-zA-Z_-]+:.*## / { \
+	        printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2 \
+	    }' $(MAKEFILE_LIST)
+	@echo ""
 
 # ===================================================================
 #  Development
@@ -114,7 +125,7 @@ backup-prod: standalone-check-env ## Backup production PostgreSQL database
 		| gzip > $(BACKUP_DIR)/prod/db_$(TIMESTAMP).sql.gz
 	@echo "✓ Prod backup: $(BACKUP_DIR)/prod/db_$(TIMESTAMP).sql.gz"
 
-backup: backup-dev ## Alias: backup dev database
+backup: backup-dev ## Backup dev database (alias for backup-dev)
 
 restore-dev: ## Restore dev SQLite (usage: make restore-dev FILE=backups/dev/db_xxx.sqlite3)
 	@if [ -z "$(FILE)" ]; then \
@@ -158,6 +169,12 @@ fe-build: ## Build frontend for production
 # ===================================================================
 #  Utilities
 # ===================================================================
+lint: ## Run linters (ruff)
+	uv run ruff check .
+
+fmt: ## Format code (ruff)
+	uv run ruff format .
+
 clean: ## Remove Python cache and build artifacts
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name '*.py[co]' -delete 2>/dev/null || true

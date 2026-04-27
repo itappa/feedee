@@ -61,6 +61,9 @@ class FeedCreateForm(forms.ModelForm):
     class Meta:
         model = Feed
         fields = ["name", "url", "category"]
+        labels = {
+            "category": "Group",
+        }
         widgets = {
             "name": forms.TextInput(
                 attrs={"class": _INPUT_CLASS, "placeholder": "Feed name"}
@@ -72,7 +75,7 @@ class FeedCreateForm(forms.ModelForm):
                 }
             ),
             "category": forms.TextInput(
-                attrs={"class": _INPUT_CLASS, "placeholder": "Category (optional)"}
+                attrs={"class": _INPUT_CLASS, "placeholder": "Group (optional)"}
             ),
         }
 
@@ -81,11 +84,14 @@ class FeedUpdateForm(forms.ModelForm):
     class Meta:
         model = Feed
         fields = ["name", "url", "category", "is_active"]
+        labels = {
+            "category": "Group",
+        }
         widgets = {
             "name": forms.TextInput(attrs={"class": _INPUT_CLASS}),
             "url": forms.URLInput(attrs={"class": _INPUT_CLASS}),
             "category": forms.TextInput(
-                attrs={"class": _INPUT_CLASS, "placeholder": "Uncategorized"}
+                attrs={"class": _INPUT_CLASS, "placeholder": "Ungrouped"}
             ),
             "is_active": forms.CheckboxInput(
                 attrs={

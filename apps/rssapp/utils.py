@@ -19,9 +19,9 @@ except ImportError:  # pragma: no cover - optional dependency
 
 
 def category_label(value):
-    """Normalize a feed category value, defaulting to 'Uncategorized'."""
+    """Normalize a feed group value, defaulting to 'Ungrouped'."""
     cleaned = (value or "").strip()
-    return cleaned if cleaned else "Uncategorized"
+    return cleaned if cleaned else "Ungrouped"
 
 
 def normalize_url(url: str) -> str:

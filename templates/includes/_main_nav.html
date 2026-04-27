@@ -1,18 +1,13 @@
-{# Main page navigation - Home / Feeds / Bookmark #}
+{# Main page navigation - Bookmarks / Feeds / Settings #}
 <div class="flex items-center gap-1">
     <a href="{% url 'homepage' %}"
        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-              {% if current_page == 'overview' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
-        🏠 Home
+              {% if current_page == 'home' or current_page == 'overview' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        🔖 Bookmarks
     </a>
     <a href="{% url 'feeds-page' %}"
        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-              {% if current_page == 'feeds' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+              {% if current_page == 'feeds' or current_page == 'feed-articles' or current_page == 'reader' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
         📰 Feeds
-    </a>
-    <a href="{% url 'bookmarks-page' %}"
-       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-              {% if current_page == 'bookmarks' %}bg-brand-100 text-brand-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
-        🔖 Bookmarks
     </a>
 </div>

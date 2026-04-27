@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Account Settings – Feedee{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 md:px-8 py-6">
+    <div class="mb-6">
+        <h1 class="text-xl font-semibold text-gray-900">Account Settings</h1>
+        <p class="text-sm text-gray-500 mt-1">Manage personal preferences and security settings.</p>
+    </div>
+
+    <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-5 mb-6">
+        <h2 class="text-sm font-semibold text-gray-900 mb-4">Feed preferences</h2>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="form_action" value="profile">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Default sort order</label>
+                    {{ profile_form.default_sort }}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Articles per page</label>
+                    {{ profile_form.items_per_page }}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Theme</label>
+                    {{ profile_form.theme_preference }}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Display mode</label>
+                    {{ profile_form.default_display_mode }}
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    Save preferences
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <section class="rounded-xl bg-white border border-gray-200 shadow-soft p-5">
+        <h2 class="text-sm font-semibold text-gray-900 mb-4">Change password</h2>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="form_action" value="password">
+            <div class="space-y-3 max-w-sm mb-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Current password</label>
+                    {{ password_form.old_password }}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">New password</label>
+                    {{ password_form.new_password1 }}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Confirm new password</label>
+                    {{ password_form.new_password2 }}
+                </div>
+            </div>
+            {% if password_form.errors %}
+            <div class="mb-4 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+                {% for field, errors in password_form.errors.items %}
+                    {% for error in errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    Change password
+                </button>
+            </div>
+        </form>
+    </section>
+</div>
+{% endblock %}

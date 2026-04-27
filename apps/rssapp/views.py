@@ -4,7 +4,7 @@ import os
 import subprocess
 import xml.etree.ElementTree as ET
 from datetime import timedelta
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote_plus, urlencode, urlparse
 
 from django.conf import settings
 from django.contrib import messages
@@ -742,61 +742,110 @@ def feed_update_view(request, feed_id):
 
 @login_required
 def settings_view(request, tab="feeds"):
-    valid_tabs = ("feeds", "tags", "account")
-    if tab not in valid_tabs:
-        tab = "feeds"
+    redirect_map = {
+        "feeds": "settings-feeds",
+        "categories": "settings-categories",
+        "tags": "settings-tags",
+        "account": "settings-account",
+    }
+    return redirect(redirect_map.get(tab, "settings-feeds"))
+
+
+@login_required
+def rss_settings_view(request):
+    context = {"current_page": "settings", "active_tab": "feeds"}
+
+    if request.method == "POST":
+        form = FeedCreateForm(request.POST)
+        if form.is_valid():
+            try:
+                new_feed = form.save(commit=False)
+                max_order = (
+                    Feed.objects.order_by("-display_order")
+                    .values_list("display_order", flat=True)
+                    .first()
+                )
+                new_feed.display_order = (max_order or 0) + 1
+                new_feed.save()
+                run_rss_worker()
+                if getattr(form, "discovery_used", False):
+                    messages.success(
+                        request,
+                        f"Feed added from the discovered RSS URL: {new_feed.url}",
+                    )
+                else:
+                    messages.success(
+                        request,
+                        "Feed added. Articles are being fetched in the background — they'll appear shortly.",
+                    )
+                return redirect("settings-feeds")
+            except IntegrityError:
+                messages.error(request, "This feed URL is already subscribed.")
+        else:
+            for field_errors in form.errors.values():
+                for error in field_errors:
+                    messages.error(request, error)
+    else:
+        form = FeedCreateForm()
+
+    feeds = (
+        Feed.objects.all()
+        .annotate(article_count=Count("articles"))
+        .order_by("display_order", "id")
+    )
+    feed_rows = [
+        {
+            "feed": feed,
+            "form": FeedUpdateForm(instance=feed, prefix=f"feed-{feed.id}"),
+        }
+        for feed in feeds
+    ]
+    context.update({"feed_form": form, "feeds": feeds, "feed_rows": feed_rows})
+    return render(request, "rss/settings_rss.html", context)
+
+
+@login_required
+def bookmark_settings_view(request, tab="categories"):
+    if tab not in ("categories", "tags"):
+        tab = "categories"
 
     context = {"current_page": "settings", "active_tab": tab}
 
-    if tab == "feeds":
+    if tab == "categories":
         if request.method == "POST":
-            form = FeedCreateForm(request.POST)
+            form = BookmarkCategoryForm(request.POST)
             if form.is_valid():
+                category = form.save(commit=False)
+                category.user = request.user
                 try:
-                    new_feed = form.save(commit=False)
-                    max_order = (
-                        Feed.objects.order_by("-display_order")
-                        .values_list("display_order", flat=True)
-                        .first()
-                    )
-                    new_feed.display_order = (max_order or 0) + 1
-                    new_feed.save()
-                    run_rss_worker()
-                    if getattr(form, "discovery_used", False):
-                        messages.success(
-                            request,
-                            f"Feed added from the discovered RSS URL: {new_feed.url}",
-                        )
-                    else:
-                        messages.success(
-                            request,
-                            "Feed added. Articles are being fetched in the background — they'll appear shortly.",
-                        )
-                    return redirect("settings-feeds")
+                    category.save()
+                    messages.success(request, f'Category "{category.name}" created.')
+                    return redirect("settings-categories")
                 except IntegrityError:
-                    messages.error(request, "This feed URL is already subscribed.")
-            else:
-                for field_errors in form.errors.values():
-                    for error in field_errors:
-                        messages.error(request, error)
+                    messages.error(request, "A category with this name already exists.")
         else:
-            form = FeedCreateForm()
+            form = BookmarkCategoryForm()
 
-        feeds = (
-            Feed.objects.all()
-            .annotate(article_count=Count("articles"))
-            .order_by("display_order", "id")
+        categories = (
+            BookmarkCategory.objects.filter(user=request.user)
+            .annotate(bookmark_count=Count("bookmarks"))
+            .order_by("display_order", "name")
         )
-        feed_rows = [
+        category_rows = [
             {
-                "feed": feed,
-                "form": FeedUpdateForm(instance=feed, prefix=f"feed-{feed.id}"),
+                "category": cat,
+                "form": BookmarkCategoryForm(instance=cat, prefix=f"cat-{cat.id}"),
             }
-            for feed in feeds
+            for cat in categories
         ]
-        context.update({"feed_form": form, "feeds": feeds, "feed_rows": feed_rows})
-
-    elif tab == "tags":
+        context.update(
+            {
+                "category_form": form,
+                "categories": categories,
+                "category_rows": category_rows,
+            }
+        )
+    else:
         if request.method == "POST":
             form = TagForm(request.POST)
             if form.is_valid():
@@ -820,32 +869,42 @@ def settings_view(request, tab="feeds"):
         ]
         context.update({"tag_form": form, "tags": tags, "tag_rows": tag_rows})
 
-    elif tab == "account":
-        profile, _ = UserProfile.objects.get_or_create(user=request.user)
-        profile_form = UserProfileForm(instance=profile)
-        password_form = StyledPasswordChangeForm(request.user)
+    return render(request, "rss/settings_bookmarks.html", context)
 
-        if request.method == "POST":
-            action = request.POST.get("form_action", "")
-            if action == "profile":
-                profile_form = UserProfileForm(request.POST, instance=profile)
-                if profile_form.is_valid():
-                    profile_form.save()
-                    messages.success(request, "Preferences saved.")
-                    return redirect("settings-account")
-            elif action == "password":
-                password_form = StyledPasswordChangeForm(request.user, request.POST)
-                if password_form.is_valid():
-                    password_form.save()
-                    from django.contrib.auth import update_session_auth_hash
 
-                    update_session_auth_hash(request, password_form.user)
-                    messages.success(request, "Password changed.")
-                    return redirect("settings-account")
+@login_required
+def account_settings_view(request):
+    context = {"current_page": "settings", "active_tab": "account"}
 
-        context.update({"profile_form": profile_form, "password_form": password_form})
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile_form = UserProfileForm(instance=profile)
+    password_form = StyledPasswordChangeForm(request.user)
 
-    return render(request, "rss/settings.html", context)
+    if request.method == "POST":
+        action = request.POST.get("form_action", "")
+        if action == "profile":
+            profile_payload = request.POST.copy()
+            for field in UserProfileForm.Meta.fields:
+                if field not in profile_payload:
+                    profile_payload[field] = getattr(profile, field)
+
+            profile_form = UserProfileForm(profile_payload, instance=profile)
+            if profile_form.is_valid():
+                profile_form.save()
+                messages.success(request, "Preferences saved.")
+                return redirect("settings-account")
+        elif action == "password":
+            password_form = StyledPasswordChangeForm(request.user, request.POST)
+            if password_form.is_valid():
+                password_form.save()
+                from django.contrib.auth import update_session_auth_hash
+
+                update_session_auth_hash(request, password_form.user)
+                messages.success(request, "Password changed.")
+                return redirect("settings-account")
+
+    context.update({"profile_form": profile_form, "password_form": password_form})
+    return render(request, "rss/settings_account.html", context)
 
 
 @login_required
@@ -1301,19 +1360,13 @@ def bookmark_list_view(request):
     bookmark_cards = []
     for bm in page_obj.object_list:
         domain = urlparse(bm.url).netloc
-        has_source_article = bool(bm.source_article_id)
-        primary_url = (
-            reverse("article-reader", args=[bm.source_article_id])
-            if has_source_article
-            else bm.url
-        )
         state = state_by_bookmark_id.get(bm.id)
         bookmark_cards.append(
             {
                 "id": bm.id,
                 "url": bm.url,
-                "primary_url": primary_url,
-                "open_in_new_tab": not has_source_article,
+                "primary_url": bm.url,
+                "open_in_new_tab": True,
                 "title": bm.title,
                 "description": bm.description,
                 "thumbnail_url": bm.thumbnail_url,
@@ -1321,7 +1374,6 @@ def bookmark_list_view(request):
                 "tags": list(bm.tags.all()),
                 "category": bm.category,
                 "created_at": bm.created_at,
-                "source_article_id": bm.source_article_id,
                 "is_pinned": state.is_pinned if state else False,
                 "is_read_later": state.is_read_later if state else False,
                 "is_read": state.is_read if state else False,
@@ -1362,6 +1414,10 @@ def _save_bookmark_tags(bookmark, tag_names_str, user):
 
 @login_required
 def bookmark_add_view(request):
+    next_url = (
+        request.POST.get("next", "").strip() or request.GET.get("next", "").strip()
+    )
+
     if request.method == "POST":
         form = BookmarkForm(request.POST)
         if form.is_valid():
@@ -1369,25 +1425,29 @@ def bookmark_add_view(request):
             bookmark.user = request.user
             # Store thumbnail from hidden field
             bookmark.thumbnail_url = request.POST.get("thumbnail_url", "")
-            # Link to source article if provided
-            source_id = request.POST.get("source_article_id", "").strip()
-            if source_id:
-                try:
-                    article = get_object_or_404(Article, id=int(source_id))
-                    bookmark.source_article = article
-                except (ValueError, TypeError):
-                    pass
             try:
                 bookmark.save()
                 _save_bookmark_tags(
                     bookmark, form.cleaned_data.get("tag_names", ""), request.user
                 )
                 messages.success(request, "Bookmark added.")
-                return redirect("bookmark-list")
+                if next_url and url_has_allowed_host_and_scheme(
+                    next_url, allowed_hosts={request.get_host()}
+                ):
+                    return redirect(next_url)
+                return redirect("bookmarks-page")
             except IntegrityError:
                 messages.error(request, "This URL is already bookmarked.")
     else:
-        form = BookmarkForm()
+        initial = {}
+        preset_category_id = request.GET.get("category", "").strip()
+        if preset_category_id:
+            category = BookmarkCategory.objects.filter(
+                user=request.user, id=preset_category_id
+            ).first()
+            if category:
+                initial["category"] = category
+        form = BookmarkForm(initial=initial)
 
     # Restrict category queryset to user's categories
     form.fields["category"].queryset = BookmarkCategory.objects.filter(
@@ -1407,6 +1467,7 @@ def bookmark_add_view(request):
             "existing_tags": existing_tags,
             "bookmark_categories": bookmark_categories,
             "edit_mode": False,
+            "next_url": next_url,
             "current_page": "bookmarks",
         },
     )
@@ -1415,6 +1476,9 @@ def bookmark_add_view(request):
 @login_required
 def bookmark_edit_view(request, bookmark_id):
     bookmark = get_object_or_404(Bookmark, id=bookmark_id, user=request.user)
+    next_url = (
+        request.POST.get("next", "").strip() or request.GET.get("next", "").strip()
+    )
 
     if request.method == "POST":
         form = BookmarkForm(request.POST, instance=bookmark)
@@ -1426,7 +1490,11 @@ def bookmark_edit_view(request, bookmark_id):
                 bm, form.cleaned_data.get("tag_names", ""), request.user
             )
             messages.success(request, "Bookmark updated.")
-            return redirect("bookmark-list")
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
+                return redirect(next_url)
+            return redirect("bookmarks-page")
     else:
         tag_names = ", ".join(t.name for t in bookmark.tags.all())
         form = BookmarkForm(instance=bookmark, initial={"tag_names": tag_names})
@@ -1450,6 +1518,7 @@ def bookmark_edit_view(request, bookmark_id):
             "existing_tags": existing_tags,
             "bookmark_categories": bookmark_categories,
             "edit_mode": True,
+            "next_url": next_url,
             "current_page": "bookmarks",
         },
     )
@@ -1458,11 +1527,17 @@ def bookmark_edit_view(request, bookmark_id):
 @login_required
 def bookmark_delete_view(request, bookmark_id):
     if request.method != "POST":
-        return redirect("bookmark-list")
+        return redirect("bookmarks-page")
+
+    next_url = request.POST.get("next", "").strip()
     bookmark = get_object_or_404(Bookmark, id=bookmark_id, user=request.user)
     bookmark.delete()
     messages.success(request, "Bookmark deleted.")
-    return redirect("bookmark-list")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}
+    ):
+        return redirect(next_url)
+    return redirect("bookmarks-page")
 
 
 @login_required
@@ -1499,7 +1574,6 @@ def bookmark_from_article_view(request, article_id):
         "bookmarks/bookmark_form.html",
         {
             "form": form,
-            "source_article_id": article.id,
             "existing_tags": existing_tags,
             "bookmark_categories": bookmark_categories,
             "edit_mode": False,
@@ -1578,50 +1652,13 @@ def tag_update_view(request, tag_id):
 
 @login_required
 def bookmark_category_list_view(request):
-    if request.method == "POST":
-        form = BookmarkCategoryForm(request.POST)
-        if form.is_valid():
-            category = form.save(commit=False)
-            category.user = request.user
-            try:
-                category.save()
-                messages.success(request, f'Category "{category.name}" created.')
-                return redirect("bookmark-category-list")
-            except IntegrityError:
-                messages.error(request, "A category with this name already exists.")
-    else:
-        form = BookmarkCategoryForm()
-
-    categories = (
-        BookmarkCategory.objects.filter(user=request.user)
-        .annotate(bookmark_count=Count("bookmarks"))
-        .order_by("display_order", "name")
-    )
-
-    category_rows = [
-        {
-            "category": cat,
-            "form": BookmarkCategoryForm(instance=cat, prefix=f"cat-{cat.id}"),
-        }
-        for cat in categories
-    ]
-
-    return render(
-        request,
-        "bookmarks/category_list.html",
-        {
-            "category_form": form,
-            "categories": categories,
-            "category_rows": category_rows,
-            "current_page": "bookmark-category-settings",
-        },
-    )
+    return redirect("settings-categories")
 
 
 @login_required
 def bookmark_category_update_view(request, category_id):
     if request.method != "POST":
-        return redirect("bookmark-category-list")
+        return redirect("settings-categories")
 
     category = get_object_or_404(BookmarkCategory, id=category_id, user=request.user)
 
@@ -1631,7 +1668,7 @@ def bookmark_category_update_view(request, category_id):
         category.bookmarks.update(category=None)
         category.delete()
         messages.success(request, f"Deleted category: {name}")
-        return redirect("bookmark-category-list")
+        return redirect("settings-categories")
 
     form = BookmarkCategoryForm(
         request.POST, instance=category, prefix=f"cat-{category.id}"
@@ -1644,14 +1681,14 @@ def bookmark_category_update_view(request, category_id):
     else:
         messages.error(request, "Could not update category.")
 
-    return redirect("bookmark-category-list")
+    return redirect("settings-categories")
 
 
 @login_required
 def bookmark_category_reorder_view(request):
     """API endpoint to reorder bookmark categories via AJAX."""
     if request.method != "POST":
-        return redirect("bookmark-category-list")
+        return redirect("settings-categories")
 
     try:
         import json
@@ -1714,7 +1751,123 @@ def _get_dashboard_statistics(user):
 
 @login_required
 def main_dashboard_view(request):
-    """Main dashboard with statistics and navigation"""
+    """Bookmark-centric home dashboard with RSS flow preview."""
+    user = request.user
+
+    # ── Bookmark data ──────────────────────────────────────
+    pinned_states = (
+        BookmarkUserState.objects.filter(user=user, is_pinned=True)
+        .select_related("bookmark__category")
+        .prefetch_related("bookmark__tags")
+        .order_by("-updated_at")
+    )
+    pinned_bookmarks = []
+    for s in pinned_states:
+        bm = s.bookmark
+        from urllib.parse import urlparse as _urlparse
+
+        domain = _urlparse(bm.url).netloc
+        pinned_bookmarks.append(
+            {
+                "id": bm.id,
+                "url": bm.url,
+                "primary_url": bm.url,
+                "open_in_new_tab": True,
+                "title": bm.title,
+                "description": bm.description,
+                "domain": domain,
+                "category": bm.category,
+                "tags": list(bm.tags.all()),
+            }
+        )
+
+    recent_bookmarks_qs = (
+        Bookmark.objects.filter(user=user)
+        .select_related("category")
+        .prefetch_related("tags")
+        .order_by("-created_at")[:10]
+    )
+    bookmark_ids = [b.id for b in recent_bookmarks_qs]
+    bm_states = {
+        s.bookmark_id: s
+        for s in BookmarkUserState.objects.filter(
+            user=user, bookmark_id__in=bookmark_ids
+        )
+    }
+    recent_bookmarks = []
+    for bm in recent_bookmarks_qs:
+        from urllib.parse import urlparse as _urlparse
+
+        domain = _urlparse(bm.url).netloc
+        state = bm_states.get(bm.id)
+        recent_bookmarks.append(
+            {
+                "id": bm.id,
+                "url": bm.url,
+                "primary_url": bm.url,
+                "open_in_new_tab": True,
+                "title": bm.title,
+                "description": bm.description,
+                "domain": domain,
+                "category": bm.category,
+                "tags": list(bm.tags.all()),
+                "created_at": bm.created_at,
+                "is_pinned": state.is_pinned if state else False,
+                "is_read_later": state.is_read_later if state else False,
+            }
+        )
+
+    total_bookmarks = Bookmark.objects.filter(user=user).count()
+    total_categories = BookmarkCategory.objects.filter(user=user).count()
+    read_later_count = BookmarkUserState.objects.filter(
+        user=user, is_read_later=True
+    ).count()
+    pinned_count = len(pinned_bookmarks)
+
+    bookmark_stats = {
+        "total": total_bookmarks,
+        "pinned": pinned_count,
+        "read_later": read_later_count,
+        "categories": total_categories,
+    }
+
+    # ── RSS flow preview ───────────────────────────────────
+    unread_articles_qs = (
+        Article.objects.filter(feed__isnull=False)
+        .exclude(user_states__user=user, user_states__is_read=True)
+        .select_related("feed")
+        .distinct()
+        .order_by("-published_at")
+    )
+    total_unread = unread_articles_qs.count()
+    flow_articles = []
+    for article in unread_articles_qs[:5]:
+        from urllib.parse import urlparse as _urlparse
+
+        flow_articles.append(
+            {
+                "id": article.id,
+                "title": article.title,
+                "feed_name": article.feed.name if article.feed else "",
+                "published_at": article.published_at,
+                "link": article.link,
+            }
+        )
+
+    context = {
+        "current_page": "home",
+        "pinned_bookmarks": pinned_bookmarks,
+        "recent_bookmarks": recent_bookmarks,
+        "bookmark_stats": bookmark_stats,
+        "flow_articles": flow_articles,
+        "total_unread": total_unread,
+    }
+    return render(request, "dashboard/homepage.html", context)
+
+
+@login_required
+def overview_dashboard_view(request):
+    """Statistics overview dashboard at /overview/."""
     stats = _get_dashboard_statistics(request.user)
 
     recent_articles = (
@@ -1774,6 +1927,10 @@ def bookmarks_page_view(request):
     query = request.GET.get("q", "").strip()
     tag_slug = request.GET.get("tag", "").strip()
     category_id = request.GET.get("category", "").strip()
+    layout_mode = request.GET.get("layout", "classic").strip()
+    if layout_mode not in {"classic", "collections"}:
+        layout_mode = "classic"
+
     sort_mode = request.GET.get("sort", "latest").strip()
     if sort_mode not in {"latest", "oldest", "title-asc", "title-desc"}:
         sort_mode = "latest"
@@ -1812,11 +1969,19 @@ def bookmarks_page_view(request):
         .order_by("display_order")
     )
 
-    paginator = Paginator(bookmarks_qs, 20)
-    page_obj = paginator.get_page(request.GET.get("page"))
     display_mode = _resolve_display_mode(request)
 
-    bookmark_ids = [b.id for b in page_obj.object_list]
+    if layout_mode == "collections":
+        bookmarks_for_display = list(
+            bookmarks_qs.select_related("category").prefetch_related("tags")
+        )
+        page_obj = None
+    else:
+        paginator = Paginator(bookmarks_qs, 20)
+        page_obj = paginator.get_page(request.GET.get("page"))
+        bookmarks_for_display = list(page_obj.object_list)
+
+    bookmark_ids = [b.id for b in bookmarks_for_display]
     state_by_bookmark_id = {}
     if bookmark_ids:
         state_by_bookmark_id = {
@@ -1826,35 +1991,64 @@ def bookmarks_page_view(request):
             )
         }
 
-    bookmark_cards = []
-    for bm in page_obj.object_list:
+    def _bookmark_card(bm):
         domain = urlparse(bm.url).netloc
-        has_source_article = bool(bm.source_article_id)
-        primary_url = (
-            reverse("article-reader", args=[bm.source_article_id])
-            if has_source_article
-            else bm.url
-        )
         state = state_by_bookmark_id.get(bm.id)
-        bookmark_cards.append(
-            {
-                "id": bm.id,
-                "url": bm.url,
-                "primary_url": primary_url,
-                "open_in_new_tab": not has_source_article,
-                "title": bm.title,
-                "description": bm.description,
-                "thumbnail_url": bm.thumbnail_url,
-                "domain": domain,
-                "tags": list(bm.tags.all()),
-                "category": bm.category,
-                "created_at": bm.created_at,
-                "source_article_id": bm.source_article_id,
-                "is_pinned": state.is_pinned if state else False,
-                "is_read_later": state.is_read_later if state else False,
-                "is_read": state.is_read if state else False,
-            }
-        )
+        return {
+            "id": bm.id,
+            "url": bm.url,
+            "primary_url": bm.url,
+            "open_in_new_tab": True,
+            "title": bm.title,
+            "description": bm.description,
+            "thumbnail_url": bm.thumbnail_url,
+            "domain": domain,
+            "tags": list(bm.tags.all()),
+            "category": bm.category,
+            "created_at": bm.created_at,
+            "is_pinned": state.is_pinned if state else False,
+            "is_read_later": state.is_read_later if state else False,
+            "is_read": state.is_read if state else False,
+        }
+
+    bookmark_cards = []
+    bookmark_collections = []
+    if layout_mode == "collections":
+        grouped = {}
+        for bm in bookmarks_for_display:
+            key = bm.category_id or 0
+            grouped.setdefault(key, []).append(_bookmark_card(bm))
+
+        for category in categories:
+            cards = grouped.pop(category.id, [])
+            if not cards:
+                continue
+            bookmark_collections.append(
+                {
+                    "key": str(category.id),
+                    "name": category.name,
+                    "color": category.color,
+                    "count": len(cards),
+                    "add_url": f"{reverse('bookmark-add')}?category={category.id}&next={quote_plus(request.get_full_path())}",
+                    "bookmarks": cards,
+                }
+            )
+
+        uncategorized_cards = grouped.pop(0, [])
+        if uncategorized_cards:
+            bookmark_collections.append(
+                {
+                    "key": "0",
+                    "name": "Uncategorized",
+                    "color": "#94a3b8",
+                    "count": len(uncategorized_cards),
+                    "add_url": f"{reverse('bookmark-add')}?next={quote_plus(request.get_full_path())}",
+                    "bookmarks": uncategorized_cards,
+                }
+            )
+    else:
+        for bm in bookmarks_for_display:
+            bookmark_cards.append(_bookmark_card(bm))
 
     context = {
         "current_page": "bookmarks",
@@ -1866,6 +2060,11 @@ def bookmarks_page_view(request):
         "tags": tags,
         "categories": categories,
         "selected_category_id": category_id,
+        "layout_mode": layout_mode,
+        "layout_mode_links": [
+            {"key": "classic", "label": "Classic"},
+            {"key": "collections", "label": "Collections"},
+        ],
         "display_mode": display_mode,
         "sort_mode": sort_mode,
         "display_mode_links": [
@@ -1879,6 +2078,8 @@ def bookmarks_page_view(request):
             {"key": "title-asc", "label": "Title A-Z"},
             {"key": "title-desc", "label": "Title Z-A"},
         ],
+        "add_bookmark_url": f"{reverse('bookmark-add')}?next={quote_plus(request.get_full_path())}",
+        "bookmark_collections": bookmark_collections,
     }
 
     if category_id:
@@ -1958,19 +2159,13 @@ def saved_view(request):
 
     bookmark_cards = []
     for bm in bookmarks_qs[:20]:
-        has_source_article = bool(bm.source_article_id)
-        primary_url = (
-            reverse("article-reader", args=[bm.source_article_id])
-            if has_source_article
-            else bm.url
-        )
         domain = urlparse(bm.url).netloc
         bookmark_cards.append(
             {
                 "id": bm.id,
                 "url": bm.url,
-                "primary_url": primary_url,
-                "open_in_new_tab": not has_source_article,
+                "primary_url": bm.url,
+                "open_in_new_tab": True,
                 "title": bm.title,
                 "description": bm.description,
                 "thumbnail_url": bm.thumbnail_url,
@@ -1978,7 +2173,6 @@ def saved_view(request):
                 "tags": list(bm.tags.all()),
                 "category": bm.category,
                 "created_at": bm.created_at,
-                "source_article_id": bm.source_article_id,
             }
         )
 
@@ -2026,7 +2220,7 @@ def save_article_as_bookmark_view(request, article_id):
                 {"ok": True, "bookmark_id": existing.id, "already_saved": True}
             )
         messages.info(request, "Already saved to bookmarks.")
-        return redirect("bookmark-list")
+        return redirect("bookmarks-page")
 
     bookmark = Bookmark(
         user=request.user,
@@ -2034,7 +2228,6 @@ def save_article_as_bookmark_view(request, article_id):
         title=article.title,
         description=(article.summary or ""),
         thumbnail_url=(article.image_url or ""),
-        source_article=article,
     )
     try:
         bookmark.save()
@@ -2050,7 +2243,7 @@ def save_article_as_bookmark_view(request, article_id):
                 }
             )
         messages.info(request, "Already saved to bookmarks.")
-        return redirect("bookmark-list")
+        return redirect("bookmarks-page")
 
     if is_ajax:
         return JsonResponse(
@@ -2058,4 +2251,4 @@ def save_article_as_bookmark_view(request, article_id):
         )
 
     messages.success(request, "Saved to bookmarks.")
-    return redirect("bookmark-list")
+    return redirect("bookmarks-page")
