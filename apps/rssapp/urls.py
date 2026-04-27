@@ -17,7 +17,11 @@ from .views import (
 )
 
 urlpatterns = [
-    path("", RedirectView.as_view(pattern_name="bookmarks-page", permanent=False), name="homepage"),
+    path(
+        "",
+        RedirectView.as_view(pattern_name="bookmarks-page", permanent=False),
+        name="homepage",
+    ),
     path("", include("apps.rss_service.public_urls")),
     path("", include("apps.bookmark_service.public_urls")),
     # Main pages
