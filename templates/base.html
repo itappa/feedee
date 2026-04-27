@@ -104,11 +104,6 @@
             Read later
             {% if sidebar_total_read_later %}<span class="ml-auto text-xs font-medium text-sky-600 bg-sky-50 rounded-full px-2 py-0.5">{{ sidebar_total_read_later }}</span>{% endif %}
         </a>
-        <a href="{% url 'homepage' %}"
-           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if current_page == 'overview' %}active{% endif %}">
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 13h8V3H3v10zm10 8h8V11h-8v10zm0-18v6h8V3h-8zM3 21h8v-6H3v6z"/></svg>
-            Home
-        </a>
     </nav>
 
     <div class="flex-1 overflow-y-auto px-3 pt-3 pb-2">
