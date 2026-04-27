@@ -46,3 +46,8 @@ node_modules/
 static/dist/
 .vite/
 
+# Local debug artifacts
+screenshot.png
+test_output.txt
+test_fail.txt
+

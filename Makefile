@@ -12,7 +12,7 @@ BACKUP_DIR         := backups
         standalone-check-env standalone-up standalone-down standalone-logs standalone-build standalone-migrate standalone-shell \
         infra-up infra-up-build infra-down \
         backup backup-dev backup-prod restore-dev restore-prod list-backups \
-        lint fmt clean superuser collectstatic \
+	lint fmt clean superuser collectstatic git-safe-purge \
         fe-install fe-dev fe-build
 
 .DEFAULT_GOAL := help
@@ -185,3 +185,10 @@ superuser: ## Create Django superuser (local)
 
 collectstatic: ## Collect static files (local)
 	uv run python manage.py collectstatic --noinput
+
+git-safe-purge: ## Safely purge paths from current branch history (usage: make git-safe-purge PATHS="a b c")
+	@if [ -z "$(PATHS)" ]; then \
+		echo "Usage: make git-safe-purge PATHS=\"screenshot.png test_output.txt\""; \
+		exit 1; \
+	fi
+	./scripts/git_safe_purge_paths.sh $(PATHS)

@@ -33,59 +33,82 @@
         </div>
     </div>
 
-    {# ── Filters ────────────────────────────────────── #}
-    <div class="mb-4 flex flex-wrap items-end gap-3">
-        <div class="rounded-2xl border border-gray-200 bg-white/90 p-1.5 shadow-sm">
-            <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">State</div>
-            <div class="flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
-                {% for item in state_filter_links %}
-                    <a href="?state={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if state_filter == item.key %}bg-white text-brand-700 shadow-sm ring-1 ring-brand-200{% else %}text-gray-500 hover:bg-white/70 hover:text-gray-700{% endif %}">
-                        {{ item.label }}
-                        <span class="ml-0.5 {% if state_filter == item.key %}text-brand-400{% else %}text-gray-400{% endif %}">{{ item.count }}</span>
-                    </a>
-                {% endfor %}
-            </div>
+    {# ── Filters Drawer Trigger ─────────────────────── #}
+    <div class="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
+        <button type="button" data-drawer-open="dashboard-filter-drawer" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12m-9 7h6"/></svg>
+            Filters
+        </button>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs text-gray-600">
+            <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">State: {{ state_filter }}</span>
+            <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">Sort: {{ sort_mode }}</span>
+            <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">View: {{ display_mode }}</span>
+            {% if query %}<span class="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">Query: {{ query }}</span>{% endif %}
         </div>
+    </div>
 
-        <div class="rounded-2xl border border-gray-200 bg-white/90 p-1.5 shadow-sm">
-            <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">View</div>
-            <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-                {% for item in display_mode_links %}
-                    <a href="?mode={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}"
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if display_mode == item.key %}bg-white text-brand-700 shadow-sm ring-1 ring-brand-200{% else %}text-gray-500 hover:bg-white/70 hover:text-gray-700{% endif %}">
-                        {{ item.label }}
-                    </a>
-                {% endfor %}
+    <div id="dashboard-filter-overlay" class="fixed inset-0 z-[70] bg-slate-900/40 opacity-0 pointer-events-none transition-opacity duration-200"></div>
+    <aside id="dashboard-filter-drawer" class="fixed inset-y-0 right-0 z-[80] w-auto min-w-[18rem] max-w-[calc(100vw-1rem)] translate-x-full border-l border-gray-200 bg-white shadow-2xl transition-transform duration-300">
+        <div class="flex h-full flex-col">
+            <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">All articles</p>
+                    <h2 class="mt-1 text-base font-semibold text-gray-900">Filter drawer</h2>
+                </div>
+                <button type="button" data-drawer-close="dashboard-filter-drawer" class="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800" aria-label="Close filters">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
             </div>
-        </div>
 
-        <div class="rounded-2xl border border-gray-200 bg-white/90 p-1.5 shadow-sm">
-            <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Sort</div>
-            <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-                {% for item in sort_links %}
-                    <a href="?sort={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if sort_mode == item.key %}bg-white text-gray-900 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:bg-white/70 hover:text-gray-700{% endif %}">
-                        {{ item.label }}
-                    </a>
-                {% endfor %}
-            </div>
-        </div>
-
-        <form method="get" class="min-w-[220px] flex-1 md:ml-auto md:max-w-sm">
-                <input type="hidden" name="state" value="{{ state_filter }}">
-                <input type="hidden" name="sort" value="{{ sort_mode }}">
-                <input type="hidden" name="mode" value="{{ display_mode }}">
-                <div class="rounded-2xl border border-gray-200 bg-white/90 p-1.5 shadow-sm">
-                    <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Search</div>
-                    <div class="relative">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 21l-5.2-5.2M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    <input type="text" name="q" value="{{ query }}" placeholder="Search title, summary, or content…"
-                           class="w-full rounded-xl border border-gray-200 bg-white pl-8 pr-3 py-2 text-sm placeholder-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none">
+            <form method="get" class="flex h-full flex-col">
+                <div class="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+                    <div>
+                        <label for="dashboard-filter-search" class="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Search</label>
+                        <input id="dashboard-filter-search" type="text" name="q" value="{{ query }}" placeholder="Search title, summary, or content…" class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+                    </div>
+                    <div>
+                        <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">State</p>
+                        <div data-drawer-width-source class="inline-flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
+                            {% for item in state_filter_links %}
+                            <label class="cursor-pointer">
+                                <input type="radio" name="state" value="{{ item.key }}" class="sr-only peer" {% if state_filter == item.key %}checked{% endif %}>
+                                <span class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-700 peer-checked:bg-white peer-checked:text-brand-700 peer-checked:shadow-sm peer-checked:ring-1 peer-checked:ring-brand-200"><span>{{ item.label }}</span><span class="text-gray-400 peer-checked:text-brand-400">{{ item.count }}</span></span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div>
+                        <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Sort</p>
+                        <div data-drawer-width-source class="inline-flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
+                            {% for item in sort_links %}
+                            <label class="cursor-pointer">
+                                <input type="radio" name="sort" value="{{ item.key }}" class="sr-only peer" {% if sort_mode == item.key %}checked{% endif %}>
+                                <span class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-700 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm peer-checked:ring-1 peer-checked:ring-gray-200">{{ item.label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div>
+                        <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">View</p>
+                        <div data-drawer-width-source class="inline-flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
+                            {% for item in display_mode_links %}
+                            <label class="cursor-pointer">
+                                <input type="radio" name="mode" value="{{ item.key }}" class="sr-only peer" {% if display_mode == item.key %}checked{% endif %}>
+                                <span class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-700 peer-checked:bg-white peer-checked:text-brand-700 peer-checked:shadow-sm peer-checked:ring-1 peer-checked:ring-brand-200">{{ item.label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-gray-200 bg-gray-50 px-5 py-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <a href="{% url 'rss-dashboard' %}" class="text-sm font-medium text-gray-600 hover:text-gray-900">Reset</a>
+                        <button type="submit" class="inline-flex items-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black">Apply filters</button>
                     </div>
                 </div>
             </form>
-    </div>
+        </div>
+    </aside>
 
     {# ── Article list ───────────────────────────────── #}
     {% if article_cards %}
@@ -110,4 +133,49 @@
     </div>{# end article list #}
 </div>{# end max-w-6xl #}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        var drawer = document.getElementById("dashboard-filter-drawer");
+        var overlay = document.getElementById("dashboard-filter-overlay");
+        var openBtn = document.querySelector("[data-drawer-open='dashboard-filter-drawer']");
+        var closeBtn = document.querySelector("[data-drawer-close='dashboard-filter-drawer']");
+        if (!drawer || !overlay || !openBtn || !closeBtn) return;
+
+        function syncDrawerWidth() {
+            var sources = drawer.querySelectorAll("[data-drawer-width-source]");
+            var maxContentWidth = 0;
+            sources.forEach(function (el) {
+                maxContentWidth = Math.max(maxContentWidth, el.scrollWidth);
+            });
+            var targetWidth = Math.max(288, maxContentWidth + 56);
+            var viewportMax = Math.max(280, window.innerWidth - 16);
+            drawer.style.width = Math.min(targetWidth, viewportMax) + "px";
+        }
+
+        function openDrawer() {
+            syncDrawerWidth();
+            drawer.classList.remove("translate-x-full");
+            overlay.classList.remove("opacity-0", "pointer-events-none");
+            document.body.classList.add("overflow-hidden");
+        }
+
+        function closeDrawer() {
+            drawer.classList.add("translate-x-full");
+            overlay.classList.add("opacity-0", "pointer-events-none");
+            document.body.classList.remove("overflow-hidden");
+        }
+
+        openBtn.addEventListener("click", openDrawer);
+        closeBtn.addEventListener("click", closeDrawer);
+        overlay.addEventListener("click", closeDrawer);
+        window.addEventListener("resize", syncDrawerWidth);
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") closeDrawer();
+        });
+        syncDrawerWidth();
+    })();
+</script>
 {% endblock %}
