@@ -4,107 +4,110 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 md:px-8 py-6">
-    {% include 'includes/_page_header_row.html' with title=page_title subtitle=page_subtitle action_label='Add Feed' action_url='/settings/' %}
+    <section class="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div class="flex items-start gap-3 px-4 py-3">
+            <details class="min-w-0 flex-1" {% if query or state_filter != 'all' or sort_mode != 'latest' or display_mode != 'compact' %}open{% endif %}>
+                <summary class="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-gray-700 marker:hidden">
+                    <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Feeds</span>
+                    <span class="text-gray-500">Filters and display</span>
+                    {% if query or state_filter != 'all' or sort_mode != 'latest' or display_mode != 'compact' %}
+                    <span class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Customized</span>
+                    {% endif %}
+                </summary>
 
-    {# ── Category filter ───────────────────────────── #}
-    {% if feed_categories %}
-    <div class="mb-4 pb-4 border-b border-gray-200">
-        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Categories</p>
-        <div class="flex flex-wrap gap-2">
-            <a href="{% url 'feeds-page' %}"
-               class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
-                      {% if not selected_category %}bg-brand-600 text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}">
-                All Feeds
-            </a>
-            {% for category in feed_categories %}
-            <a href="{% url 'feeds-page' %}?category={{ category }}"
-               class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
-                      {% if selected_category == category %}bg-brand-600 text-white shadow-sm{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}">
-                {{ category }}
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {# ── Filters / sort / search ───────────────────── #}
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div class="flex items-center gap-2">
-            {% if request.user.is_authenticated %}
-            <form method="post" action="{% url 'mark-all-read' %}" data-confirm="Mark all displayed articles as read?">
-                {% csrf_token %}
-                {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
-                <input type="hidden" name="state" value="{{ state_filter }}">
-                <input type="hidden" name="q" value="{{ query }}">
-                <input type="hidden" name="mode" value="{{ display_mode }}">
-                <button class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm">
-                    Mark all as read
-                </button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2 mb-4">
-        {% for item in state_filter_links %}
-            <a href="?state={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}"
-               aria-label="Filter by state: {{ item.label }}"
-               {% if state_filter == item.key %}aria-current="page"{% endif %}
-               class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
-                      {% if state_filter == item.key %}bg-brand-600 text-white shadow-sm
-                      {% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}">
-                {{ item.label }}
-                <span class="{% if state_filter == item.key %}text-white/70{% else %}text-gray-400{% endif %} ml-0.5">{{ item.count }}</span>
-            </a>
-        {% endfor %}
-
-        <div class="ml-auto flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <div class="flex items-center gap-1">
-                {% for item in display_mode_links %}
-                    <a href="?mode={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}"
-                       aria-label="Display mode: {{ item.label }}"
-                       {% if display_mode == item.key %}aria-current="page"{% endif %}
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if display_mode == item.key %}bg-brand-600 text-white{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}">
-                        {{ item.label }}
-                    </a>
-                {% endfor %}
-            </div>
-            <div class="flex items-center gap-1">
-                {% for item in sort_links %}
-                    <a href="?sort={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}"
-                       aria-label="Sort by: {{ item.label }}"
-                       {% if sort_mode == item.key %}aria-current="page"{% endif %}
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if sort_mode == item.key %}bg-gray-900 text-white{% else %}border border-gray-200 bg-white text-gray-600 hover:bg-gray-50{% endif %}">
-                        {{ item.label }}
-                    </a>
-                {% endfor %}
-            </div>
-
-            <form method="get" class="flex-1 min-w-[220px] md:min-w-[260px]">
+                <div class="mt-3 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-3">
+            <form method="get" class="min-w-[240px] flex-[1.4]">
                 <label for="feeds-search-input" class="sr-only">Search articles</label>
                 {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
                 <input type="hidden" name="state" value="{{ state_filter }}">
                 <input type="hidden" name="sort" value="{{ sort_mode }}">
                 <input type="hidden" name="mode" value="{{ display_mode }}">
-                <div class="relative">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 21l-5.2-5.2M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    <input id="feeds-search-input" type="text" name="q" value="{{ query }}" placeholder="Search title, summary, or content..."
-                           class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm placeholder-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none">
+                <div>
+                    <div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Quick Find</div>
+                    <div class="relative">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 21l-5.2-5.2M17 10a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <input id="feeds-search-input" type="text" name="q" value="{{ query }}" placeholder="Search title, summary, or content..."
+                               class="w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-2.5 text-sm placeholder-gray-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-100 focus:outline-none">
+                    </div>
                 </div>
             </form>
-        </div>
-    </div>
 
-    {% if query or selected_category or state_filter != 'all' or sort_mode != 'latest' %}
-    <div class="mb-4 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
-        <span class="font-medium text-gray-800">Active filters:</span>
-        {% if selected_category %}<span class="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5">Category: {{ selected_category }}</span>{% endif %}
-        {% if state_filter != 'all' %}<span class="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5">State: {{ state_filter }}</span>{% endif %}
-        {% if sort_mode != 'latest' %}<span class="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5">Sort: {{ sort_mode }}</span>{% endif %}
-        {% if query %}<span class="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5">Query: {{ query }}</span>{% endif %}
-        <a href="{% url 'feeds-page' %}{% if selected_category %}?category={{ selected_category }}{% endif %}" class="ml-3 font-medium text-brand-700 hover:underline">Clear search & state</a>
-    </div>
-    {% endif %}
+            <div class="min-w-[220px]">
+                <div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">State</div>
+                <div class="flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
+                    {% for item in state_filter_links %}
+                        <a href="?state={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}"
+                           aria-label="Filter by state: {{ item.label }}"
+                           {% if state_filter == item.key %}aria-current="page"{% endif %}
+                           class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if state_filter == item.key %}bg-white text-brand-700 shadow-sm ring-1 ring-brand-200{% else %}text-gray-500 hover:bg-white hover:text-gray-700{% endif %}">
+                            {{ item.label }}
+                            <span class="ml-0.5 {% if state_filter == item.key %}text-brand-400{% else %}text-gray-400{% endif %}">{{ item.count }}</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="min-w-[220px]">
+                <div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Density</div>
+                <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+                    {% for item in display_mode_links %}
+                        <a href="?mode={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}"
+                           aria-label="Display mode: {{ item.label }}"
+                           {% if display_mode == item.key %}aria-current="page"{% endif %}
+                           class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if display_mode == item.key %}bg-white text-brand-700 shadow-sm ring-1 ring-brand-200{% else %}text-gray-500 hover:bg-white hover:text-gray-700{% endif %}">
+                            {{ item.label }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="min-w-[220px]">
+                <div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Order</div>
+                <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+                    {% for item in sort_links %}
+                        <a href="?sort={{ item.key }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}"
+                           aria-label="Sort by: {{ item.label }}"
+                           {% if sort_mode == item.key %}aria-current="page"{% endif %}
+                           class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if sort_mode == item.key %}bg-white text-gray-900 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:bg-white hover:text-gray-700{% endif %}">
+                            {{ item.label }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if request.user.is_authenticated %}
+            <form method="post" action="{% url 'mark-all-read' %}" data-confirm="Mark all displayed articles as read?" class="ml-auto">
+                {% csrf_token %}
+                {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+                <input type="hidden" name="state" value="{{ state_filter }}">
+                <input type="hidden" name="q" value="{{ query }}">
+                <input type="hidden" name="mode" value="{{ display_mode }}">
+                <button class="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                    Mark all as read
+                </button>
+            </form>
+            {% endif %}
+                </div>
+            </details>
+
+            <a href="{% url 'settings-feeds' %}"
+               class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4v16m8-8H4"/></svg>
+                Add feed
+            </a>
+        </div>
+
+        {% if query or selected_category or state_filter != 'all' or sort_mode != 'latest' %}
+        <div class="flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-600">
+            <span class="font-medium text-gray-800">Active:</span>
+            {% if selected_category %}<span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5">Sidebar group: {{ selected_category }}</span>{% endif %}
+            {% if state_filter != 'all' %}<span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5">State: {{ state_filter }}</span>{% endif %}
+            {% if sort_mode != 'latest' %}<span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5">Sort: {{ sort_mode }}</span>{% endif %}
+            {% if query %}<span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5">Query: {{ query }}</span>{% endif %}
+            <a href="{% url 'feeds-page' %}{% if selected_category %}?category={{ selected_category }}{% endif %}" class="ml-auto font-medium text-brand-700 hover:underline">Clear search & state</a>
+        </div>
+        {% endif %}
+    </section>
 
     {# ── Articles grid ─────────────────────────────── #}
     {% if article_cards %}
