@@ -3,7 +3,14 @@ from collections import OrderedDict
 from django.db.models import Count, Q
 from django.http import HttpRequest
 
-from .models import ArticleUserState, Bookmark, BookmarkCategory, Feed, Tag
+from .models import (
+    ArticleUserState,
+    Bookmark,
+    BookmarkCategory,
+    BookmarkUserState,
+    Feed,
+    Tag,
+)
 from .utils import category_label
 
 
@@ -77,8 +84,15 @@ def sidebar_feeds(request):
     sidebar_tags = []
     sidebar_bookmark_categories = []
     total_bookmarks = 0
+    total_bookmarks_pinned = 0
+    total_bookmarks_read_later = 0
+    total_bookmarks_read = 0
     if is_auth:
         total_bookmarks = Bookmark.objects.filter(user=user).count()
+        bookmark_states = BookmarkUserState.objects.filter(user=user)
+        total_bookmarks_pinned = bookmark_states.filter(is_pinned=True).count()
+        total_bookmarks_read_later = bookmark_states.filter(is_read_later=True).count()
+        total_bookmarks_read = bookmark_states.filter(is_read=True).count()
         sidebar_tags = list(
             Tag.objects.filter(user=user)
             .annotate(bookmark_count=Count("bookmarks", distinct=True))
@@ -110,6 +124,9 @@ def sidebar_feeds(request):
         "sidebar_tags": sidebar_tags,
         "sidebar_bookmark_categories": sidebar_bookmark_categories,
         "sidebar_total_bookmarks": total_bookmarks,
+        "sidebar_total_bookmarks_pinned": total_bookmarks_pinned,
+        "sidebar_total_bookmarks_read_later": total_bookmarks_read_later,
+        "sidebar_total_bookmarks_read": total_bookmarks_read,
         "theme_preference": theme_preference,
         "active_app": _detect_active_app(request),
     }

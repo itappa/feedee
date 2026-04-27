@@ -71,10 +71,6 @@ body {
   flex-shrink: 0;
 }
 
-#app-switcher-btn:hover svg {
-  transform: rotate(180deg);
-}
-
 #app-switcher-badge {
   white-space: nowrap;
   flex-shrink: 0;

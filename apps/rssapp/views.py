@@ -1927,6 +1927,9 @@ def bookmarks_page_view(request):
     query = request.GET.get("q", "").strip()
     tag_slug = request.GET.get("tag", "").strip()
     category_id = request.GET.get("category", "").strip()
+    bookmark_flag = request.GET.get("flag", "all").strip()
+    if bookmark_flag not in {"all", "pinned", "read-later", "read"}:
+        bookmark_flag = "all"
     layout_mode = request.GET.get("layout", "classic").strip()
     if layout_mode not in {"classic", "collections"}:
         layout_mode = "classic"
@@ -1950,6 +1953,20 @@ def bookmarks_page_view(request):
             bookmarks_qs = bookmarks_qs.filter(category_id=cat_id)
         except (ValueError, TypeError):
             pass
+    if bookmark_flag != "all":
+        state_filters = {"user": request.user}
+        if bookmark_flag == "pinned":
+            state_filters["is_pinned"] = True
+        elif bookmark_flag == "read-later":
+            state_filters["is_read_later"] = True
+        elif bookmark_flag == "read":
+            state_filters["is_read"] = True
+
+        bookmarks_qs = bookmarks_qs.filter(
+            id__in=BookmarkUserState.objects.filter(**state_filters).values(
+                "bookmark_id"
+            )
+        )
 
     if sort_mode == "oldest":
         bookmarks_qs = bookmarks_qs.order_by("created_at")
@@ -2060,6 +2077,7 @@ def bookmarks_page_view(request):
         "tags": tags,
         "categories": categories,
         "selected_category_id": category_id,
+        "bookmark_flag": bookmark_flag,
         "layout_mode": layout_mode,
         "layout_mode_links": [
             {"key": "classic", "label": "Classic"},
@@ -2096,7 +2114,14 @@ def bookmarks_page_view(request):
         )
     else:
         context["selected_category_name"] = ""
-        context["page_title"] = "All Bookmarks"
+        if bookmark_flag == "pinned":
+            context["page_title"] = "Pinned Bookmarks"
+        elif bookmark_flag == "read-later":
+            context["page_title"] = "Read later Bookmarks"
+        elif bookmark_flag == "read":
+            context["page_title"] = "Read Bookmarks"
+        else:
+            context["page_title"] = "All Bookmarks"
     context["page_subtitle"] = (
         f"{context['bookmark_count']} bookmark"
         f"{'s' if context['bookmark_count'] != 1 else ''}"

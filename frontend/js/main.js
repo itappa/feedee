@@ -366,7 +366,7 @@ import "../css/main.css";
     var bookmarkIndicator = document.getElementById("app-indicator-bookmark");
     if (rssIndicator) rssIndicator.classList.toggle("hidden", activeApp !== "rss");
     if (bookmarkIndicator) bookmarkIndicator.classList.toggle("hidden", activeApp !== "bookmark");
-    if (badge) badge.textContent = activeApp === "bookmark" ? "Bookmark" : "RSS";
+    if (badge) badge.textContent = activeApp === "bookmark" ? "Bookmark" : "Feed";
   }
 
   // Initialize: detect current app from URL and restore or set default

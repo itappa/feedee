@@ -1,11 +1,11 @@
 {# Reusable pagination with page numbers #}
-{# Expects: page_obj, plus any of: query, state_filter, tag_slug, sort_mode #}
+{# Expects: page_obj, plus any of: query, state_filter, tag_slug, sort_mode, bookmark_flag #}
 {% if page_obj.paginator.num_pages > 1 %}
 <nav class="mt-6 flex items-center justify-between text-sm" aria-label="Pagination">
     <span class="text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
     <div class="flex items-center gap-1">
         {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
+                <a href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if bookmark_flag and bookmark_flag != 'all' %}&flag={{ bookmark_flag }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
                aria-label="Previous page"
                class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm">&larr;</a>
         {% endif %}
@@ -13,7 +13,7 @@
             {% if page_obj.number == p %}
                 <span class="rounded-lg bg-brand-600 text-white px-3 py-1.5 text-sm font-medium shadow-sm">{{ p }}</span>
             {% elif p == 1 or p == page_obj.paginator.num_pages or p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
-                                         <a href="?page={{ p }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
+                                         <a href="?page={{ p }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if bookmark_flag and bookmark_flag != 'all' %}&flag={{ bookmark_flag }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
                                      aria-label="Go to page {{ p }}"
                    class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm">{{ p }}</a>
             {% elif p == 2 and page_obj.number > 4 or p == page_obj.paginator.num_pages|add:"-1" and page_obj.number < page_obj.paginator.num_pages|add:"-3" %}
@@ -21,7 +21,7 @@
             {% endif %}
         {% endfor %}
         {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
+                <a href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if state_filter and state_filter != 'all' %}&state={{ state_filter }}{% endif %}{% if bookmark_flag and bookmark_flag != 'all' %}&flag={{ bookmark_flag }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
                aria-label="Next page"
                class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm">&rarr;</a>
         {% endif %}
