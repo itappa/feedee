@@ -1,9 +1,20 @@
 from collections import OrderedDict
 
 from django.db.models import Count, Q
+from django.http import HttpRequest
 
 from .models import ArticleUserState, Bookmark, BookmarkCategory, Feed, Tag
 from .utils import category_label
+
+
+def _detect_active_app(request: HttpRequest) -> str:
+    """Detect active app (rss/bookmark/shared) from URL path or current_page context."""
+    path = request.path
+    if "bookmark" in path:
+        return "bookmark"
+    if "feeds" in path or "articles" in path or "overview" in path or "read-later" in path or "favorites" in path:
+        return "rss"
+    return "shared"
 
 
 def sidebar_feeds(request):
@@ -94,4 +105,5 @@ def sidebar_feeds(request):
         "sidebar_bookmark_categories": sidebar_bookmark_categories,
         "sidebar_total_bookmarks": total_bookmarks,
         "theme_preference": theme_preference,
+        "active_app": _detect_active_app(request),
     }

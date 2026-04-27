@@ -23,7 +23,51 @@ body {
   color: #1d4ed8;
   font-weight: 600;
 }
+/* ── App Switcher (Catalyst-style) ─────────────── */
+#app-switcher-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
 
+#app-switcher-btn svg {
+  transition: transform 0.2s;
+}
+
+#app-switcher-btn:hover svg {
+  transform: rotate(180deg);
+}
+
+#app-switcher-dropdown {
+  min-width: 12rem;
+}
+
+#app-switcher-dropdown .data-app-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #374151;
+  transition: background 0.12s;
+}
+
+#app-switcher-dropdown .data-app-option:hover {
+  background-color: #f3f4f6;
+}
+
+#app-switcher-dropdown .data-app-option svg {
+  width: 1rem;
+  height: 1rem;
+  color: #9ca3af;
+}
+
+#app-switcher-dropdown .data-app-option .ml-auto {
+  margin-left: auto;
+}
 @media (max-width: 767px) {
   #sidebar-panel {
     transform: translateX(-100%);

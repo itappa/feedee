@@ -345,3 +345,61 @@ import "../css/main.css";
     show(form.dataset.confirm, variant);
   });
 })();
+
+// ── App Switcher (Catalyst-style) ──────────────────────
+(function () {
+  var btn = document.getElementById("app-switcher-btn");
+  var dropdown = document.getElementById("app-switcher-dropdown");
+  var label = document.getElementById("app-switcher-label");
+  if (!btn || !dropdown) return;
+
+  function detectCurrentApp() {
+    var path = window.location.pathname;
+    if (path.includes("/bookmarks")) return "bookmark";
+    if (path.includes("/feeds") || path.includes("/articles") || path.includes("/overview") || path.includes("/read-later") || path.includes("/favorites")) return "rss";
+    return "rss"; // default
+  }
+
+  function updateAppIndicators(activeApp) {
+    var rssIndicator = document.getElementById("app-indicator-rss");
+    var bookmarkIndicator = document.getElementById("app-indicator-bookmark");
+    if (rssIndicator) rssIndicator.classList.toggle("hidden", activeApp !== "rss");
+    if (bookmarkIndicator) bookmarkIndicator.classList.toggle("hidden", activeApp !== "bookmark");
+    label.textContent = activeApp === "bookmark" ? "Bookmark" : "RSS";
+  }
+
+  // Initialize: detect current app from URL and restore or set default
+  var currentApp = detectCurrentApp();
+  var storedApp = localStorage.getItem("feedee-active-app");
+  if (storedApp && (storedApp === "rss" || storedApp === "bookmark")) {
+    currentApp = storedApp;
+  }
+  localStorage.setItem("feedee-active-app", currentApp);
+  updateAppIndicators(currentApp);
+
+  // Dropdown toggle
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    dropdown.classList.toggle("hidden");
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener("click", function (e) {
+    if (!dropdown.classList.contains("hidden") && !dropdown.contains(e.target) && e.target !== btn) {
+      dropdown.classList.add("hidden");
+    }
+  });
+
+  // App option links
+  var appOptions = dropdown.querySelectorAll(".data-app-option");
+  appOptions.forEach(function (option) {
+    option.addEventListener("click", function (e) {
+      e.preventDefault();
+      var app = option.dataset.app;
+      localStorage.setItem("feedee-active-app", app);
+      updateAppIndicators(app);
+      dropdown.classList.add("hidden");
+      window.location.href = option.href;
+    });
+  });
+})();
