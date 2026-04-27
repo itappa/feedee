@@ -5,67 +5,90 @@
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 md:px-8 py-6">
     <section class="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div class="flex items-start gap-3 px-4 py-3">
-            <details class="min-w-0 flex-1" {% if bookmark_flag != 'all' or sort_mode != 'latest' or layout_mode != 'classic' or display_mode != 'compact' %}open{% endif %}>
-                <summary class="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-gray-700 marker:hidden">
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Bookmarks</span>
-                    <span class="text-gray-500">Filters and display</span>
-                    {% if bookmark_flag != 'all' or sort_mode != 'latest' or layout_mode != 'classic' or display_mode != 'compact' %}
-                    <span class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Customized</span>
-                    {% endif %}
-                </summary>
-
-                <div class="mt-3 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-3">
-            <div class="min-w-[180px]">
-                <div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Layout</div>
-                <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-                    {% for item in layout_mode_links %}
-                    <a href="{% url 'bookmarks-page' %}?layout={{ item.key }}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if bookmark_flag and bookmark_flag != 'all' %}&flag={{ bookmark_flag }}{% endif %}{% if query %}&q={{ query }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}"
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if layout_mode == item.key %}bg-white text-gray-900 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:bg-white hover:text-gray-700{% endif %}">
-                        {{ item.label }}
-                    </a>
-                    {% endfor %}
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div class="min-w-0 flex-1">
+                <button type="button" data-drawer-open="bookmarks-filter-drawer" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12m-9 7h6"/></svg>
+                    Filters
+                </button>
+                <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-600">
+                    <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5">Layout: {{ layout_mode }}</span>
+                    <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5">Sort: {{ sort_mode }}</span>
+                    {% if layout_mode == 'classic' %}<span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5">Density: {{ display_mode }}</span>{% endif %}
+                    {% if selected_category_name %}<span class="inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">Category: {{ selected_category_name }}</span>{% endif %}
+                    {% if tag_slug %}<span class="inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">Tag: {{ tag_slug }}</span>{% endif %}
                 </div>
             </div>
 
-            {% if layout_mode == 'classic' %}
-            <div class="min-w-[220px]">
-                <div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Density</div>
-                <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-                    {% for item in display_mode_links %}
-                          <a href="{% url 'bookmarks-page' %}?mode={{ item.key }}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if bookmark_flag and bookmark_flag != 'all' %}&flag={{ bookmark_flag }}{% endif %}{% if query %}&q={{ query }}{% endif %}{% if layout_mode %}&layout={{ layout_mode }}{% endif %}{% if sort_mode %}&sort={{ sort_mode }}{% endif %}"
-                       aria-label="Display mode: {{ item.label }}"
-                       {% if display_mode == item.key %}aria-current="page"{% endif %}
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if display_mode == item.key %}bg-white text-brand-700 shadow-sm ring-1 ring-brand-200{% else %}text-gray-500 hover:bg-white hover:text-gray-700{% endif %}">
-                        {{ item.label }}
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="min-w-[220px]">
-                <div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">Order</div>
-                <div class="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-                    {% for item in sort_links %}
-                          <a href="{% url 'bookmarks-page' %}?sort={{ item.key }}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}{% if bookmark_flag and bookmark_flag != 'all' %}&flag={{ bookmark_flag }}{% endif %}{% if query %}&q={{ query }}{% endif %}{% if layout_mode %}&layout={{ layout_mode }}{% endif %}{% if display_mode %}&mode={{ display_mode }}{% endif %}"
-                       aria-label="Sort bookmarks by: {{ item.label }}"
-                       {% if sort_mode == item.key %}aria-current="page"{% endif %}
-                       class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors {% if sort_mode == item.key %}bg-white text-gray-900 shadow-sm ring-1 ring-gray-200{% else %}text-gray-500 hover:bg-white hover:text-gray-700{% endif %}">
-                        {{ item.label }}
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-                </div>
-            </details>
-
-            <a href="{{ add_bookmark_url }}"
-               class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900">
+            <a href="{{ add_bookmark_url }}" class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4v16m8-8H4"/></svg>
                 Add bookmark
             </a>
         </div>
+
+        <div id="bookmarks-filter-overlay" class="fixed inset-0 z-[70] bg-slate-900/40 opacity-0 pointer-events-none transition-opacity duration-200"></div>
+        <aside id="bookmarks-filter-drawer" class="fixed inset-y-0 right-0 z-[80] w-auto min-w-[18rem] max-w-[calc(100vw-1rem)] translate-x-full border-l border-gray-200 bg-white shadow-2xl transition-transform duration-300">
+            <div class="flex h-full flex-col">
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+                    <div>
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">Bookmarks</p>
+                        <h2 class="mt-1 text-base font-semibold text-gray-900">Filter drawer</h2>
+                    </div>
+                    <button type="button" data-drawer-close="bookmarks-filter-drawer" class="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800" aria-label="Close filters">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <form method="get" class="flex h-full flex-col">
+                    {% if selected_category_id %}<input type="hidden" name="category" value="{{ selected_category_id }}">{% endif %}
+                    {% if tag_slug %}<input type="hidden" name="tag" value="{{ tag_slug }}">{% endif %}
+                    {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+                    {% if bookmark_flag and bookmark_flag != 'all' %}<input type="hidden" name="flag" value="{{ bookmark_flag }}">{% endif %}
+                    <div class="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+                        <div>
+                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Layout</p>
+                            <div data-drawer-width-source class="inline-flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
+                                {% for item in layout_mode_links %}
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="layout" value="{{ item.key }}" class="sr-only peer" {% if layout_mode == item.key %}checked{% endif %}>
+                                    <span class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-700 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm peer-checked:ring-1 peer-checked:ring-gray-200">{{ item.label }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div>
+                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Order</p>
+                            <div data-drawer-width-source class="inline-flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
+                                {% for item in sort_links %}
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="sort" value="{{ item.key }}" class="sr-only peer" {% if sort_mode == item.key %}checked{% endif %}>
+                                    <span class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-700 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm peer-checked:ring-1 peer-checked:ring-gray-200">{{ item.label }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% if layout_mode == 'classic' %}
+                        <div>
+                            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Density</p>
+                            <div data-drawer-width-source class="inline-flex flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1">
+                                {% for item in display_mode_links %}
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="mode" value="{{ item.key }}" class="sr-only peer" {% if display_mode == item.key %}checked{% endif %}>
+                                    <span class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-700 peer-checked:bg-white peer-checked:text-brand-700 peer-checked:shadow-sm peer-checked:ring-1 peer-checked:ring-brand-200">{{ item.label }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="border-t border-gray-200 bg-gray-50 px-5 py-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <a href="{% url 'bookmarks-page' %}?layout={{ layout_mode }}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if tag_slug %}&tag={{ tag_slug }}{% endif %}" class="text-sm font-medium text-gray-600 hover:text-gray-900">Reset</a>
+                            <button type="submit" class="inline-flex items-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black">Apply filters</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </aside>
 
         {% if tag_slug or selected_category_id or bookmark_flag != 'all' or sort_mode != 'latest' %}
         <div class="flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-600">
@@ -250,4 +273,49 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        var drawer = document.getElementById("bookmarks-filter-drawer");
+        var overlay = document.getElementById("bookmarks-filter-overlay");
+        var openBtn = document.querySelector("[data-drawer-open='bookmarks-filter-drawer']");
+        var closeBtn = document.querySelector("[data-drawer-close='bookmarks-filter-drawer']");
+        if (!drawer || !overlay || !openBtn || !closeBtn) return;
+
+        function syncDrawerWidth() {
+            var sources = drawer.querySelectorAll("[data-drawer-width-source]");
+            var maxContentWidth = 0;
+            sources.forEach(function (el) {
+                maxContentWidth = Math.max(maxContentWidth, el.scrollWidth);
+            });
+            var targetWidth = Math.max(288, maxContentWidth + 56);
+            var viewportMax = Math.max(280, window.innerWidth - 16);
+            drawer.style.width = Math.min(targetWidth, viewportMax) + "px";
+        }
+
+        function openDrawer() {
+            syncDrawerWidth();
+            drawer.classList.remove("translate-x-full");
+            overlay.classList.remove("opacity-0", "pointer-events-none");
+            document.body.classList.add("overflow-hidden");
+        }
+
+        function closeDrawer() {
+            drawer.classList.add("translate-x-full");
+            overlay.classList.add("opacity-0", "pointer-events-none");
+            document.body.classList.remove("overflow-hidden");
+        }
+
+        openBtn.addEventListener("click", openDrawer);
+        closeBtn.addEventListener("click", closeDrawer);
+        overlay.addEventListener("click", closeDrawer);
+        window.addEventListener("resize", syncDrawerWidth);
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") closeDrawer();
+        });
+        syncDrawerWidth();
+    })();
+</script>
 {% endblock %}
