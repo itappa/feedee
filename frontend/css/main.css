@@ -59,17 +59,25 @@ body {
 #app-switcher-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.5rem;
   font-weight: 500;
   font-size: 0.875rem;
+  padding: 0;
 }
 
 #app-switcher-btn svg {
   transition: transform 0.2s;
+  margin-left: 0.25rem;
+  flex-shrink: 0;
 }
 
 #app-switcher-btn:hover svg {
   transform: rotate(180deg);
+}
+
+#app-switcher-badge {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 #app-switcher-dropdown {
@@ -122,6 +130,21 @@ body {
 #user-menu-dropdown a:hover,
 #user-menu-dropdown button:hover {
   background-color: #f3f4f6;
+}
+
+/* ── Fixed Search Bar (Main Content Top) ─────────────── */
+main > div:first-child {
+  /* Sticky top search bar styling */
+}
+
+main > div:first-child form {
+  max-width: 24rem; /* max-w-md */
+}
+
+main > div:first-child input[type="text"] {
+  width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 @media (max-width: 767px) {
   #sidebar-panel {

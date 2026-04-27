@@ -351,7 +351,7 @@ import "../css/main.css";
 (function () {
   var btn = document.getElementById("app-switcher-btn");
   var dropdown = document.getElementById("app-switcher-dropdown");
-  var label = document.getElementById("app-switcher-label");
+  var badge = document.getElementById("app-switcher-badge");
   if (!btn || !dropdown) return;
 
   function detectCurrentApp() {
@@ -366,7 +366,7 @@ import "../css/main.css";
     var bookmarkIndicator = document.getElementById("app-indicator-bookmark");
     if (rssIndicator) rssIndicator.classList.toggle("hidden", activeApp !== "rss");
     if (bookmarkIndicator) bookmarkIndicator.classList.toggle("hidden", activeApp !== "bookmark");
-    label.textContent = activeApp === "bookmark" ? "Bookmark" : "RSS";
+    if (badge) badge.textContent = activeApp === "bookmark" ? "Bookmark" : "RSS";
   }
 
   // Initialize: detect current app from URL and restore or set default
@@ -386,7 +386,7 @@ import "../css/main.css";
 
   // Close dropdown on outside click
   document.addEventListener("click", function (e) {
-    if (!dropdown.classList.contains("hidden") && !dropdown.contains(e.target) && e.target !== btn) {
+    if (!dropdown.classList.contains("hidden") && !dropdown.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
       dropdown.classList.add("hidden");
     }
   });
