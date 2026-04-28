@@ -24,7 +24,9 @@ RUN uv pip install --system --no-cache -r pyproject.toml
 # ---- Runtime stage ----
 FROM python:3.13-slim
 
-RUN addgroup --system app && adduser --system --ingroup app app
+RUN addgroup --system app && adduser --system --ingroup app --home /home/app app
+
+ENV HOME=/home/app
 
 COPY --from=builder /usr/local /usr/local
 
@@ -34,10 +36,10 @@ COPY . .
 # Copy Vite build output
 COPY --from=frontend /app/static/dist/ static/dist/
 
-RUN mkdir -p /app/staticfiles \
+RUN mkdir -p /app/staticfiles /home/app \
   && chmod 775 /app/staticfiles \
   && chmod +x docker/entrypoint.sh \
-  && chown -R app:app /app
+  && chown -R app:app /app /home/app
 
 USER app
 

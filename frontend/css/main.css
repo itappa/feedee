@@ -142,22 +142,6 @@ main > div:first-child input[type="text"] {
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
-@media (max-width: 767px) {
-  #sidebar-panel {
-    transform: translateX(-100%);
-    transition: transform 0.2s;
-  }
-  #sidebar-panel.open {
-    transform: translateX(0);
-  }
-  #sidebar-overlay {
-    transition: opacity 0.2s;
-  }
-  #sidebar-overlay.open {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
 
 /* ── Article card read state ─────────────────────────── */
 .article-card {

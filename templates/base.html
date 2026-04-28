@@ -6,46 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Feedee{% endblock %}</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <script>
-        (function() {
-            try {
-                var preferred = localStorage.getItem('feedee-theme') || '{{ theme_preference|default:"system"|escapejs }}' || 'system';
-                var resolved = preferred === 'system'
-                    ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-                    : preferred;
-                var root = document.documentElement;
-                root.dataset.theme = preferred;
-                root.classList.toggle('theme-dark', resolved === 'dark');
-                root.classList.toggle('theme-light', resolved !== 'dark');
-            } catch (e) {}
-        })();
-    </script>
-    <style>
-        :root { color-scheme: light; }
-        html.theme-dark { color-scheme: dark; }
-        html.theme-dark body,
-        html.theme-dark main { background-color: #0b1220 !important; color: #e5e7eb !important; }
-        html.theme-dark header,
-        html.theme-dark aside,
-        html.theme-dark .bg-white,
-        html.theme-dark .bg-gray-50,
-        html.theme-dark .bg-gray-50\/50 { background-color: #111827 !important; }
-        html.theme-dark .border-gray-100,
-        html.theme-dark .border-gray-200 { border-color: #334155 !important; }
-        html.theme-dark .text-gray-900 { color: #f8fafc !important; }
-        html.theme-dark .text-gray-700,
-        html.theme-dark .text-gray-600,
-        html.theme-dark .text-gray-500 { color: #cbd5e1 !important; }
-        html.theme-dark .text-gray-400 { color: #94a3b8 !important; }
-        html.theme-dark input,
-        html.theme-dark select,
-        html.theme-dark textarea { background-color: #0f172a !important; color: #f8fafc !important; border-color: #334155 !important; }
-    </style>
+    {% include "includes/_theme_head.html" %}
     {% vite_assets "js/main.js" %}
     <link rel="stylesheet" href="{% static 'css/article-prose.css' %}">
     {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full bg-gray-50 text-gray-900 font-sans antialiased transition-colors flex">
+<body class="h-full bg-gray-50 text-gray-900 font-sans antialiased transition-colors flex"
+      data-current-app="{% if active_app == 'bookmark' or current_page == 'bookmarks' or current_page == 'tag-settings' or current_page == 'home' %}bookmark{% else %}rss{% endif %}">
 
 {# ── Sidebar Overlay (mobile) ───────────────────────── #}
 <div id="sidebar-overlay" class="fixed inset-0 z-40 bg-black/30 opacity-0 pointer-events-none md:hidden" aria-hidden="true"></div>
@@ -250,7 +217,7 @@
 </aside>
 
 {# ── Main Content ───────────────────────────────────── #}
-<main class="ml-64 flex-1 min-h-screen bg-gray-50 flex flex-col">
+<main class="md:ml-64 flex-1 min-h-screen bg-gray-50 flex flex-col">
     {# ── Search Bar (Fixed Top) ────────────────────── #}
     <div class="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 md:px-8 py-3 flex-shrink-0">
         <div class="flex items-center gap-3">

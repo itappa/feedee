@@ -4,15 +4,28 @@
 COMPOSE            := docker compose
 COMPOSE_STANDALONE := docker compose --env-file .env -f compose.standalone.yaml
 COMPOSE_INFRA      := docker compose -f compose.infra.yaml
+PYTHON_RUN         := uv run python
 TIMESTAMP          := $(shell date +%Y%m%d_%H%M%S)
 BACKUP_DIR         := backups
+FRONTEND_PM        := $(shell if command -v bun >/dev/null 2>&1; then echo bun; elif command -v npm >/dev/null 2>&1; then echo npm; fi)
+
+ifeq ($(FRONTEND_PM),bun)
+FRONTEND_INSTALL := bun install
+FRONTEND_RUN     := bun run
+else ifeq ($(FRONTEND_PM),npm)
+FRONTEND_INSTALL := npm install
+FRONTEND_RUN     := npm run
+else
+FRONTEND_INSTALL := @echo "Missing frontend package manager: install bun or npm."; exit 1
+FRONTEND_RUN     := @echo "Missing frontend package manager: install bun or npm."; exit 1
+endif
 
 .PHONY: help \
         dev up down logs build test migrate shell worker \
         standalone-check-env standalone-up standalone-down standalone-logs standalone-build standalone-migrate standalone-shell \
         infra-up infra-up-build infra-down \
-        backup backup-dev backup-prod restore-dev restore-prod list-backups \
-	lint fmt clean superuser collectstatic git-safe-purge \
+        backup-dev backup-prod restore-dev restore-prod list-backups \
+        lint fmt clean superuser collectstatic git-safe-purge \
         fe-install fe-dev fe-build
 
 .DEFAULT_GOAL := help
@@ -52,13 +65,13 @@ build: ## Build dev images
 	$(COMPOSE) build
 
 test: ## Run Django tests
-	uv run python manage.py test apps.rssapp
+	$(PYTHON_RUN) manage.py test apps.rssapp
 
 migrate: ## Run Django migrations (local)
-	uv run python manage.py migrate
+	$(PYTHON_RUN) manage.py migrate
 
 shell: ## Open Django shell (local)
-	uv run python manage.py shell
+	$(PYTHON_RUN) manage.py shell
 
 worker: ## Run RSS worker locally
 	go run rss_worker/main.go
@@ -79,7 +92,7 @@ standalone-check-env:
 	done
 
 standalone-up: standalone-check-env ## Start standalone production environment
-	$(COMPOSE_STANDALONE) up --build -d --wait
+	$(COMPOSE_STANDALONE) up --build -d
 
 standalone-down: ## Stop standalone production environment
 	@POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-dummy} WORKER_API_TOKEN=$${WORKER_API_TOKEN:-dummy} $(COMPOSE_STANDALONE) down
@@ -125,8 +138,6 @@ backup-prod: standalone-check-env ## Backup production PostgreSQL database
 		| gzip > $(BACKUP_DIR)/prod/db_$(TIMESTAMP).sql.gz
 	@echo "✓ Prod backup: $(BACKUP_DIR)/prod/db_$(TIMESTAMP).sql.gz"
 
-backup: backup-dev ## Backup dev database (alias for backup-dev)
-
 restore-dev: ## Restore dev SQLite (usage: make restore-dev FILE=backups/dev/db_xxx.sqlite3)
 	@if [ -z "$(FILE)" ]; then \
 		echo "Usage: make restore-dev FILE=backups/dev/db_xxx.sqlite3"; \
@@ -158,13 +169,13 @@ list-backups: ## List all backups
 #  Frontend (Vite + Tailwind)
 # ===================================================================
 fe-install: ## Install frontend dependencies
-	npm install
+	$(FRONTEND_INSTALL)
 
 fe-dev: ## Start Vite dev server (HMR)
-	npm run dev
+	$(FRONTEND_RUN) dev
 
 fe-build: ## Build frontend for production
-	npm run build
+	$(FRONTEND_RUN) build
 
 # ===================================================================
 #  Utilities
@@ -181,10 +192,10 @@ clean: ## Remove Python cache and build artifacts
 	rm -rf build/ dist/ *.egg-info
 
 superuser: ## Create Django superuser (local)
-	uv run python manage.py createsuperuser
+	$(PYTHON_RUN) manage.py createsuperuser
 
 collectstatic: ## Collect static files (local)
-	uv run python manage.py collectstatic --noinput
+	$(PYTHON_RUN) manage.py collectstatic --noinput
 
 git-safe-purge: ## Safely purge paths from current branch history (usage: make git-safe-purge PATHS="a b c")
 	@if [ -z "$(PATHS)" ]; then \

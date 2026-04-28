@@ -12,8 +12,25 @@ import "../css/main.css";
     root.classList.toggle("theme-light", resolved !== "dark");
   }
 
+  var root = document.documentElement;
   var select = document.querySelector("select[name='theme_preference']");
+  var storedTheme = localStorage.getItem("feedee-theme");
+  var initialTheme = storedTheme || root.dataset.theme || (select ? select.value : "system");
+
+  applyTheme(initialTheme);
+
+  if (window.matchMedia) {
+    var mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    mediaQuery.addEventListener("change", function () {
+      if ((root.dataset.theme || "system") === "system") {
+        applyTheme("system");
+      }
+    });
+  }
+
   if (!select) return;
+
+  select.value = initialTheme;
 
   select.addEventListener("change", function () {
     localStorage.setItem("feedee-theme", select.value);
@@ -355,10 +372,13 @@ import "../css/main.css";
   if (!btn || !dropdown) return;
 
   function detectCurrentApp() {
+    var explicitApp = document.body ? document.body.dataset.currentApp : "";
+    if (explicitApp === "rss" || explicitApp === "bookmark") return explicitApp;
+
     var path = window.location.pathname;
     if (path.includes("/bookmarks")) return "bookmark";
     if (path.includes("/feeds") || path.includes("/articles") || path.includes("/overview") || path.includes("/read-later") || path.includes("/favorites")) return "rss";
-    return "rss"; // default
+    return "";
   }
 
   function updateAppIndicators(activeApp) {
@@ -369,12 +389,13 @@ import "../css/main.css";
     if (badge) badge.textContent = activeApp === "bookmark" ? "Bookmark" : "Feed";
   }
 
-  // Initialize: detect current app from URL and restore or set default
+  // Initialize from the current page. Only fall back to stored state when the page is app-agnostic.
   var currentApp = detectCurrentApp();
   var storedApp = localStorage.getItem("feedee-active-app");
-  if (storedApp && (storedApp === "rss" || storedApp === "bookmark")) {
+  if (!currentApp && storedApp && (storedApp === "rss" || storedApp === "bookmark")) {
     currentApp = storedApp;
   }
+  if (!currentApp) currentApp = "rss";
   localStorage.setItem("feedee-active-app", currentApp);
   updateAppIndicators(currentApp);
 

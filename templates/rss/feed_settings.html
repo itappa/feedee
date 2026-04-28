@@ -47,11 +47,11 @@
     <div class="space-y-2" id="feed-list" data-reorder-url="{% url 'feed-reorder' %}">
         {% for row in feed_rows %}
         {% with feed=row.feed form=row.form %}
-        <div class="feed-card rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden transition-all hover:border-gray-300"
-             draggable="true" data-feed-id="{{ feed.id }}">
+           <div class="feed-card rounded-xl bg-white border border-gray-200 shadow-soft overflow-hidden transition-all hover:border-gray-300"
+               draggable="false" data-feed-id="{{ feed.id }}">
 
             {# ── Compact summary row ── #}
-            <div class="feed-summary flex items-center gap-3 px-4 py-3 cursor-pointer" onclick="this.closest('.feed-card').classList.toggle('editing')">
+            <div class="feed-summary flex items-center gap-3 px-4 py-3 cursor-pointer" onclick="window.toggleFeedEdit(this)">
                 <svg class="w-4 h-4 text-gray-300 cursor-grab flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 8h16M4 16h16"/></svg>
                 <div class="w-2 h-2 rounded-full flex-shrink-0 {% if feed.is_active %}bg-emerald-400{% else %}bg-gray-300{% endif %}"></div>
                 <div class="flex-1 min-w-0">
@@ -116,7 +116,13 @@
     </div>
 
     <div class="mt-4 flex items-center gap-3">
-        <button id="save-order" class="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 px-4 py-2 transition-colors shadow-sm">
+        <button id="toggle-order-mode" class="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 px-4 py-2 transition-colors shadow-sm">
+            Reorder feeds
+        </button>
+        <button id="cancel-order" class="hidden rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 px-4 py-2 transition-colors shadow-sm">
+            Cancel reorder
+        </button>
+        <button id="save-order" class="hidden rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 px-4 py-2 transition-colors shadow-sm">
             <svg class="w-4 h-4 inline -mt-0.5 mr-1 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
             Save order
         </button>
@@ -139,20 +145,37 @@
     var list = document.getElementById("feed-list");
     if (!list) return;
     var dragSrc = null;
+    var reorderMode = false;
     var rows = function() { return Array.from(list.querySelectorAll("[data-feed-id]")); };
+    var setDraggable = function(enabled) {
+        rows().forEach(function(row) {
+            row.setAttribute("draggable", enabled ? "true" : "false");
+        });
+    };
+
+    window.toggleFeedEdit = function(summaryRow) {
+        if (reorderMode) return;
+        summaryRow.closest(".feed-card").classList.toggle("editing");
+    };
 
     rows().forEach(function(row) {
         row.addEventListener("dragstart", function(e) {
+            if (!reorderMode) {
+                e.preventDefault();
+                return;
+            }
             dragSrc = row;
             row.classList.add("opacity-50");
             e.dataTransfer.effectAllowed = "move";
         });
         row.addEventListener("dragend", function() { row.classList.remove("opacity-50"); });
         row.addEventListener("dragover", function(e) {
+            if (!reorderMode) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
         });
         row.addEventListener("drop", function(e) {
+            if (!reorderMode) return;
             e.preventDefault();
             if (!dragSrc || dragSrc === row) return;
             var all = rows();
@@ -161,9 +184,37 @@
         });
     });
 
+    var modeBtn = document.getElementById("toggle-order-mode");
+    var cancelBtn = document.getElementById("cancel-order");
     var btn = document.getElementById("save-order");
     var status = document.getElementById("order-status");
     var csrf = document.querySelector("input[name='csrfmiddlewaretoken']");
+
+    var setReorderMode = function(enabled) {
+        reorderMode = enabled;
+        list.dataset.reorderMode = enabled ? "on" : "off";
+        setDraggable(enabled);
+        if (enabled) {
+            rows().forEach(function(row) { row.classList.remove("editing"); });
+            status.textContent = "Drag feeds to reorder, then save.";
+        } else {
+            status.textContent = "";
+            dragSrc = null;
+        }
+        if (modeBtn) modeBtn.classList.toggle("hidden", enabled);
+        if (cancelBtn) cancelBtn.classList.toggle("hidden", !enabled);
+        if (btn) btn.classList.toggle("hidden", !enabled);
+    };
+
+    setReorderMode(false);
+
+    modeBtn && modeBtn.addEventListener("click", function() {
+        setReorderMode(true);
+    });
+
+    cancelBtn && cancelBtn.addEventListener("click", function() {
+        setReorderMode(false);
+    });
 
     btn && btn.addEventListener("click", async function() {
         var feedIds = rows().map(function(r) { return Number(r.dataset.feedId); });
@@ -181,6 +232,7 @@
         } catch(e) {
             status.textContent = "Could not save order.";
             btn.disabled = false;
+            if (cancelBtn) cancelBtn.disabled = false;
         }
     });
 })();
