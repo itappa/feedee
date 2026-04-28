@@ -187,7 +187,7 @@
     {% elif bookmark_cards %}
     <div class="{% if display_mode == 'card' %}grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4{% elif display_mode == 'list' %}space-y-2{% else %}grid grid-cols-1 md:grid-cols-2 gap-3{% endif %}">
         {% for bookmark in bookmark_cards %}
-        <div class="group rounded-lg bg-white border border-gray-200 shadow-soft overflow-hidden hover:border-gray-300 hover:shadow-md transition-all {% if display_mode == 'list' %}flex items-start gap-0{% elif display_mode == 'card' %}flex flex-col{% else %}flex items-start gap-0{% endif %}">
+        <div class="group rounded-lg bg-white border border-gray-200 shadow-soft hover:border-gray-300 hover:shadow-md transition-all {% if display_mode == 'list' %}flex items-start gap-0{% elif display_mode == 'card' %}flex flex-col{% else %}flex items-start gap-0{% endif %}">
             {# ── Thumbnail ──────────────────────────────── #}
             {% if display_mode == 'card' %}
             {% if bookmark.thumbnail_url %}
@@ -235,30 +235,41 @@
             </div>
 
             {# ── Bookmark actions ────────────────────────── #}
-            <div class="{% if display_mode == 'card' %}px-4 pb-4{% else %}pr-3 pb-3 pt-0{% endif %} flex items-center justify-between">
-                <div class="flex gap-0.5">
-                    <form method="post" action="{% url 'bookmark-state-toggle' bookmark.id 'is_pinned' %}" class="inline">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button type="submit" class="{% if bookmark.is_pinned %}text-amber-500 hover:text-amber-600{% else %}text-gray-400 hover:text-amber-500{% endif %} transition-colors" title="{% if bookmark.is_pinned %}Unpin{% else %}Pin to homepage{% endif %}">
-                            <svg class="w-4 h-4" fill="{% if bookmark.is_pinned %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M8 3h8l-2.5 6v4l2 2v1H8.5v-1l2-2V9L8 3zM12 16v5"/></svg>
-                        </button>
-                    </form>
-                    <a href="{{ bookmark.url }}" target="_blank" rel="noopener noreferrer"
-                       class="text-gray-400 hover:text-gray-600 transition-colors" title="Open link">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-4-6l6-6m0 0l-6 6"/></svg>
-                    </a>
-                    <a href="{% url 'bookmark-edit' bookmark.id %}?next={{ request.get_full_path|urlencode }}"
-                       class="text-gray-400 hover:text-gray-600 transition-colors" title="Edit">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    </a>
-                    <form method="post" action="{% url 'bookmark-delete' bookmark.id %}" class="inline" onsubmit="return confirm('Delete bookmark?');">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button type="submit" class="text-gray-400 hover:text-red-600 transition-colors" title="Delete">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        </button>
-                    </form>
+            <div class="{% if display_mode == 'card' %}px-4 pb-4{% else %}pr-3 pb-3 pt-0{% endif %} flex items-center justify-end">
+                <div class="relative" data-bookmark-menu>
+                    <button type="button"
+                            class="rounded-lg border border-gray-200 bg-white px-2 py-1 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+                            data-bookmark-menu-trigger
+                            aria-haspopup="true"
+                            aria-expanded="false"
+                            title="Actions">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 6h.01M12 12h.01M12 18h.01"/></svg>
+                    </button>
+
+                    <div class="hidden absolute right-0 z-30 mt-2 w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl" data-bookmark-menu-panel>
+                        <a href="{{ bookmark.url }}" target="_blank" rel="noopener noreferrer"
+                           class="flex w-full items-center rounded-md px-2.5 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            Open link
+                        </a>
+                        <a href="{% url 'bookmark-edit' bookmark.id %}?next={{ request.get_full_path|urlencode }}"
+                           class="flex w-full items-center rounded-md px-2.5 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            Edit
+                        </a>
+                        <form method="post" action="{% url 'bookmark-state-toggle' bookmark.id 'is_pinned' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit" class="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm {% if bookmark.is_pinned %}text-amber-700 hover:bg-amber-50{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                                {% if bookmark.is_pinned %}Unpin from homepage{% else %}Pin to homepage{% endif %}
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'bookmark-delete' bookmark.id %}" onsubmit="return confirm('Delete bookmark?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit" class="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm text-rose-600 hover:bg-rose-50">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -316,6 +327,59 @@
             if (event.key === "Escape") closeDrawer();
         });
         syncDrawerWidth();
+    })();
+
+    (function () {
+        var menus = Array.from(document.querySelectorAll("[data-bookmark-menu]"));
+        if (!menus.length) return;
+
+        function closeMenu(menu) {
+            var trigger = menu.querySelector("[data-bookmark-menu-trigger]");
+            var panel = menu.querySelector("[data-bookmark-menu-panel]");
+            if (!trigger || !panel) return;
+            panel.classList.add("hidden");
+            trigger.setAttribute("aria-expanded", "false");
+        }
+
+        function openMenu(menu) {
+            menus.forEach(function (m) {
+                if (m !== menu) closeMenu(m);
+            });
+            var trigger = menu.querySelector("[data-bookmark-menu-trigger]");
+            var panel = menu.querySelector("[data-bookmark-menu-panel]");
+            if (!trigger || !panel) return;
+            panel.classList.remove("hidden");
+            trigger.setAttribute("aria-expanded", "true");
+        }
+
+        menus.forEach(function (menu) {
+            var trigger = menu.querySelector("[data-bookmark-menu-trigger]");
+            var panel = menu.querySelector("[data-bookmark-menu-panel]");
+            if (!trigger || !panel) return;
+
+            trigger.addEventListener("click", function (event) {
+                event.stopPropagation();
+                var isOpen = !panel.classList.contains("hidden");
+                if (isOpen) {
+                    closeMenu(menu);
+                } else {
+                    openMenu(menu);
+                }
+            });
+
+            panel.addEventListener("click", function (event) {
+                event.stopPropagation();
+            });
+        });
+
+        document.addEventListener("click", function () {
+            menus.forEach(closeMenu);
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key !== "Escape") return;
+            menus.forEach(closeMenu);
+        });
     })();
 </script>
 {% endblock %}
