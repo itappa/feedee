@@ -246,27 +246,23 @@
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 6h.01M12 12h.01M12 18h.01"/></svg>
                     </button>
 
-                    <div class="hidden absolute right-0 z-30 mt-2 w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl" data-bookmark-menu-panel>
-                        <a href="{{ bookmark.url }}" target="_blank" rel="noopener noreferrer"
-                           class="flex w-full items-center rounded-md px-2.5 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            Open link
-                        </a>
-                        <a href="{% url 'bookmark-edit' bookmark.id %}?next={{ request.get_full_path|urlencode }}"
-                           class="flex w-full items-center rounded-md px-2.5 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            Edit
+                    <div class="hidden absolute right-0 z-30 mt-2 w-32 rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl" data-bookmark-menu-panel>
+                         <a href="{% url 'bookmark-edit' bookmark.id %}?next={{ request.get_full_path|urlencode }}"
+                           class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-edit"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415" /><path d="M16 5l3 3" /></svg>Edit
                         </a>
                         <form method="post" action="{% url 'bookmark-state-toggle' bookmark.id 'is_pinned' %}">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                            <button type="submit" class="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm {% if bookmark.is_pinned %}text-amber-700 hover:bg-amber-50{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
-                                {% if bookmark.is_pinned %}Unpin from homepage{% else %}Pin to homepage{% endif %}
+                            <button type="submit" class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm {% if bookmark.is_pinned %}text-amber-700 hover:bg-amber-50{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                                {% if bookmark.is_pinned %}<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="icon icon-tabler icons-tabler-filled icon-tabler-pin"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15.113 3.21l.094 .083l5.5 5.5a1 1 0 0 1 -1.175 1.59l-3.172 3.171l-1.424 3.797a1 1 0 0 1 -.158 .277l-.07 .08l-1.5 1.5a1 1 0 0 1 -1.32 .082l-.095 -.083l-2.793 -2.792l-3.793 3.792a1 1 0 0 1 -1.497 -1.32l.083 -.094l3.792 -3.793l-2.792 -2.793a1 1 0 0 1 -.083 -1.32l.083 -.094l1.5 -1.5a1 1 0 0 1 .258 -.187l.098 -.042l3.796 -1.425l3.171 -3.17a1 1 0 0 1 1.497 -1.26z" /></svg>Pinned{% else %}<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-pin"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4" /><path d="M9 15l-4.5 4.5" /><path d="M14.5 4l5.5 5.5" /></svg>Pin{% endif %}
                             </button>
                         </form>
                         <form method="post" action="{% url 'bookmark-delete' bookmark.id %}" onsubmit="return confirm('Delete bookmark?');">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                            <button type="submit" class="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm text-rose-600 hover:bg-rose-50">
-                                Delete
+                            <button type="submit" class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-rose-600 hover:bg-rose-50">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="icon icon-tabler icons-tabler-filled icon-tabler-trash"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M20 6a1 1 0 0 1 .117 1.993l-.117 .007h-.081l-.919 11a3 3 0 0 1 -2.824 2.995l-.176 .005h-8c-1.598 0 -2.904 -1.249 -2.992 -2.75l-.005 -.167l-.923 -11.083h-.08a1 1 0 0 1 -.117 -1.993l.117 -.007zm-10 4a1 1 0 0 0 -1 1v6a1 1 0 0 0 2 0v-6a1 1 0 0 0 -1 -1m4 0a1 1 0 0 0 -1 1v6a1 1 0 0 0 2 0v-6a1 1 0 0 0 -1 -1" /><path d="M14 2a2 2 0 0 1 2 2a1 1 0 0 1 -1.993 .117l-.007 -.117h-4l-.007 .117a1 1 0 0 1 -1.993 -.117a2 2 0 0 1 1.85 -1.995l.15 -.005z" /></svg>Delete
                             </button>
                         </form>
                     </div>

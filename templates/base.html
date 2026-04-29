@@ -131,12 +131,6 @@
             Read later
             {% if sidebar_total_bookmarks_read_later %}<span class="ml-auto text-xs font-medium text-sky-600 bg-sky-50 rounded-full px-2 py-0.5">{{ sidebar_total_bookmarks_read_later }}</span>{% endif %}
         </a>
-        <a href="{% url 'bookmarks-page' %}?flag=read"
-           class="sidebar-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-700 {% if request.GET.flag == 'read' %}active{% endif %}">
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-            Read
-            {% if sidebar_total_bookmarks_read %}<span class="ml-auto text-xs font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5">{{ sidebar_total_bookmarks_read }}</span>{% endif %}
-        </a>
 
         <div class="border-t border-gray-100 mt-3 pt-3">
             <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Categories</p>
